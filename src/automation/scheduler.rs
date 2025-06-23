@@ -105,8 +105,11 @@ impl AutomationScheduler {
         
         match &schedule.frequency {
             ScheduleFrequency::Hourly => {
-                // Run at the top of every hour
-                "0 0 * * * *".to_string()
+                // Run every hour from the current time (e.g., if started at 14:35, run at 15:35, 16:35, etc.)
+                let now = chrono::Utc::now();
+                let minute = now.minute();
+                let second = now.second();
+                format!("{} {} * * * *", second, minute)
             }
             ScheduleFrequency::Daily => {
                 if let Some(time) = &schedule.time {
