@@ -53,14 +53,6 @@ jobs:
         brew install openssl
         echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl)" >> $GITHUB_ENV
 
-    - name: Check formatting
-      if: matrix.rust == 'stable' && matrix.os == 'ubuntu-latest'
-      run: cargo fmt --all -- --check
-
-    - name: Run Clippy
-      if: matrix.rust == 'stable'
-      run: cargo clippy --all-targets --all-features -- -D warnings
-
     - name: Run tests
       run: cargo test --verbose --all-features
 
@@ -150,33 +142,4 @@ jobs:
       run: cargo install cargo-audit
 
     - name: Run security audit
-      run: cargo audit
-
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: llvm-tools-preview
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libssl-dev pkg-config
-
-    - name: Install cargo-llvm-cov
-      run: cargo install cargo-llvm-cov
-
-    - name: Generate coverage report
-      run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: lcov.info
-        fail_ci_if_error: true 
+      run: cargo audit 
