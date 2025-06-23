@@ -274,7 +274,6 @@ Found a bug or have a feature idea? We'd love to hear from you!
 
 - **Bug Reports**: [Create an issue](https://github.com/mindPatch/vulfy/issues/new?template=bug_report.md)
 - **Feature Requests**: [Start a discussion](https://github.com/mindPatch/vulfy/discussions/new?category=ideas)
-- **Security Issues**: Email security@vulfy.dev
 
 ## 📄 License
 
