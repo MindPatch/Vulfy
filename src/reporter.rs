@@ -554,7 +554,10 @@ impl Reporter {
             Ecosystem::Cargo => "🦀",
             Ecosystem::Maven => "☕",
             Ecosystem::Go => "🐹",
-            Ecosystem::RubyGems => "��",
+            Ecosystem::RubyGems => "💎",
+            Ecosystem::Vcpkg => "⚙️",
+            Ecosystem::Composer => "🐘",
+            Ecosystem::NuGet => "��",
         }
     }
 

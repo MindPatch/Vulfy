@@ -11,6 +11,9 @@ mod rust;
 mod java;
 mod go;
 mod ruby;
+mod cpp;
+mod php;
+mod csharp;
 
 pub use npm::NpmParser;
 pub use python::PythonParser;
@@ -18,6 +21,9 @@ pub use rust::RustParser;
 pub use java::JavaParser;
 pub use go::GoParser;
 pub use ruby::RubyParser;
+pub use cpp::CppParser;
+pub use php::PhpParser;
+pub use csharp::CSharpParser;
 
 /// Strategy pattern for parsing different package file formats
 pub trait PackageParser {
@@ -35,6 +41,9 @@ pub enum Parser {
     Java(JavaParser),
     Go(GoParser),
     Ruby(RubyParser),
+    Cpp(CppParser),
+    Php(PhpParser),
+    Csharp(CSharpParser),
 }
 
 impl Parser {
@@ -46,6 +55,9 @@ impl Parser {
             Parser::Java(p) => p.can_parse(file_path),
             Parser::Go(p) => p.can_parse(file_path),
             Parser::Ruby(p) => p.can_parse(file_path),
+            Parser::Cpp(p) => p.can_parse(file_path),
+            Parser::Php(p) => p.can_parse(file_path),
+            Parser::Csharp(p) => p.can_parse(file_path),
         }
     }
 
@@ -57,6 +69,9 @@ impl Parser {
             Parser::Java(p) => p.parse(file_path).await,
             Parser::Go(p) => p.parse(file_path).await,
             Parser::Ruby(p) => p.parse(file_path).await,
+            Parser::Cpp(p) => p.parse(file_path).await,
+            Parser::Php(p) => p.parse(file_path).await,
+            Parser::Csharp(p) => p.parse(file_path).await,
         }
     }
 
@@ -68,6 +83,9 @@ impl Parser {
             Parser::Java(p) => p.ecosystem(),
             Parser::Go(p) => p.ecosystem(),
             Parser::Ruby(p) => p.ecosystem(),
+            Parser::Cpp(p) => p.ecosystem(),
+            Parser::Php(p) => p.ecosystem(),
+            Parser::Csharp(p) => p.ecosystem(),
         }
     }
 }
@@ -85,6 +103,9 @@ impl Scanner {
             Parser::Java(JavaParser),
             Parser::Go(GoParser),
             Parser::Ruby(RubyParser),
+            Parser::Cpp(CppParser),
+            Parser::Php(PhpParser),
+            Parser::Csharp(CSharpParser),
         ];
 
         Self { parsers }
