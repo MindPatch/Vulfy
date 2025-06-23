@@ -13,7 +13,7 @@ pub struct Package {
 }
 
 /// Report output formats
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum ReportFormat {
     /// Beautiful ASCII table with emojis (default)
     #[value(name = "table")]

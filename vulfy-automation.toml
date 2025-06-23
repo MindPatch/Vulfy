@@ -1,0 +1,24 @@
+policies = []
+
+[[repositories]]
+name = "my-project"
+url = "https://github.com/mindpatch/hacks"
+
+[schedule]
+frequency = "daily"
+time = "02:00"
+timezone = "UTC"
+
+[notifications]
+enabled = false
+webhooks = []
+
+[notifications.filters]
+min_severity = "medium"
+only_new_vulnerabilities = true
+
+[storage]
+database_path = "vulfy_automation.db"
+retain_days = 30
+export_format = "json"
+export_path = "vulfy_exports"

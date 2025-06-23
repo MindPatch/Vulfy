@@ -123,6 +123,18 @@ pub enum AutomationCommand {
         /// Specific repository to scan (optional)
         #[arg(short, long)]
         repository: Option<String>,
+
+        /// Report format (table is default, shows beautiful CLI output)
+        #[arg(short = 'f', long, default_value = "table")]
+        format: ReportFormat,
+
+        /// Output file (optional - save results to file)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Show only vulnerabilities (skip summary)
+        #[arg(long)]
+        vulnerabilities_only: bool,
     },
     /// Show automation status and next scheduled run
     #[command(name = "status")]
@@ -321,8 +333,8 @@ async fn execute_automation_command(command: AutomationCommand) -> VulfyResult<(
         AutomationCommand::Stop { config } => {
             execute_automation_stop(config).await
         }
-        AutomationCommand::Run { config, workspace, repository } => {
-            execute_automation_run(config, workspace, repository).await
+        AutomationCommand::Run { config, workspace, repository, format, output, vulnerabilities_only } => {
+            execute_automation_run(config, workspace, repository, format, output, vulnerabilities_only).await
         }
         AutomationCommand::Status { config } => {
             execute_automation_status(config).await
@@ -348,7 +360,7 @@ async fn execute_automation_init(config_path: PathBuf, with_examples: bool) -> V
     let mut automation_config = AutomationConfig::default_config();
 
     if with_examples {
-        // Add example repositories
+        // Add comprehensive examples (existing complex configuration)
         automation_config.repositories = vec![
             Repository {
                 name: "my-web-app".to_string(),
@@ -394,6 +406,25 @@ async fn execute_automation_init(config_path: PathBuf, with_examples: bool) -> V
         // Set daily schedule at 2:00 AM
         automation_config.schedule.frequency = ScheduleFrequency::Daily;
         automation_config.schedule.time = Some("02:00".to_string());
+    } else {
+        // Create simple default configuration
+        automation_config.repositories = vec![
+            Repository {
+                name: "my-project".to_string(),
+                url: "https://github.com/your-username/your-repo.git".to_string(),
+                branches: None, // Will scan default branch
+                local_path: None,
+                credentials: None, // For public repos
+                ecosystems: None, // Will scan all supported ecosystems
+            },
+        ];
+
+        // Simple daily schedule
+        automation_config.schedule.frequency = ScheduleFrequency::Daily;
+        automation_config.schedule.time = Some("02:00".to_string());
+
+        // Minimal notifications (disabled by default)
+        automation_config.notifications.enabled = false;
     }
 
     // Save configuration
@@ -406,7 +437,7 @@ async fn execute_automation_init(config_path: PathBuf, with_examples: bool) -> V
     info!("✅ Automation configuration created successfully!");
     
     if with_examples {
-        println!("\n📝 Example configuration created with:");
+        println!("\n📝 Comprehensive example configuration created with:");
         println!("   • 2 example repositories");
         println!("   • Discord and Slack webhook templates");
         println!("   • Default security policies");
@@ -414,8 +445,12 @@ async fn execute_automation_init(config_path: PathBuf, with_examples: bool) -> V
         println!("\n🔧 Edit {} to customize your setup", config_path.display());
         println!("💡 Remember to update webhook URLs and repository credentials!");
     } else {
-        println!("\n📝 Basic configuration created");
-        println!("🔧 Edit {} to add repositories, webhooks, and policies", config_path.display());
+        println!("\n📝 Simple configuration created!");
+        println!("   • 1 example repository (update the URL)");
+        println!("   • Daily scans at 2:00 AM");
+        println!("   • Notifications disabled (edit config to enable)");
+        println!("\n🔧 Edit {} to add your repository details", config_path.display());
+        println!("💡 Use --with-examples for a comprehensive configuration");
     }
 
     Ok(())
@@ -486,7 +521,7 @@ async fn execute_automation_stop(_config_path: PathBuf) -> VulfyResult<()> {
     Ok(())
 }
 
-async fn execute_automation_run(config_path: PathBuf, workspace: PathBuf, repository: Option<String>) -> VulfyResult<()> {
+async fn execute_automation_run(config_path: PathBuf, workspace: PathBuf, repository: Option<String>, format: ReportFormat, output: Option<PathBuf>, vulnerabilities_only: bool) -> VulfyResult<()> {
     info!("Running manual automation scan...");
 
     // Load configuration
@@ -509,7 +544,7 @@ async fn execute_automation_run(config_path: PathBuf, workspace: PathBuf, reposi
     }
 
     // Create scheduler and run manual scan
-    let scheduler = AutomationScheduler::new(filtered_config, workspace).await.map_err(|e| {
+    let scheduler = AutomationScheduler::new(filtered_config, workspace.clone()).await.map_err(|e| {
         VulfyError::Config {
             message: format!("Failed to create scheduler: {}", e),
         }
@@ -521,19 +556,89 @@ async fn execute_automation_run(config_path: PathBuf, workspace: PathBuf, reposi
         }
     })?;
 
-    // Print summary
-    let total_repos = results.len();
-    let total_vulns: usize = results.iter().map(|r| r.vulnerabilities.len()).sum();
-    let repos_with_vulns = results.iter().filter(|r| !r.vulnerabilities.is_empty()).count();
+    if !vulnerabilities_only {
+        // Print summary
+        let total_repos = results.len();
+        let total_vulns: usize = results.iter().map(|r| r.vulnerabilities.len()).sum();
+        let repos_with_vulns = results.iter().filter(|r| !r.vulnerabilities.is_empty()).count();
 
-    println!("\n🔍 Manual Scan Results:");
-    println!("📊 Scanned {} repositories", total_repos);
-    println!("⚠️  Found {} vulnerabilities across {} repositories", total_vulns, repos_with_vulns);
-    
-    for result in &results {
-        if !result.vulnerabilities.is_empty() {
-            println!("   • {}/{}: {} vulnerabilities", result.repository, result.branch, result.vulnerabilities.len());
+        println!("\n🔍 Manual Scan Results:");
+        println!("📊 Scanned {} repositories", total_repos);
+        println!("⚠️  Found {} vulnerabilities across {} repositories", total_vulns, repos_with_vulns);
+        
+        for result in &results {
+            if !result.vulnerabilities.is_empty() {
+                println!("   • {}/{}: {} vulnerabilities", result.repository, result.branch, result.vulnerabilities.len());
+            }
         }
+    }
+
+    // Convert automation results to standard scan result format for reporting
+    if !results.is_empty() && (format != crate::types::ReportFormat::Table || output.is_some()) {
+        let mut all_packages = Vec::new();
+        
+        for scan_result in &results {
+            // Group vulnerabilities by package name
+            let mut package_vulns: std::collections::HashMap<String, Vec<crate::types::Vulnerability>> = std::collections::HashMap::new();
+            
+            for vulnerability in &scan_result.vulnerabilities {
+                // Extract package name from vulnerability ID (often in format "package-name@version")
+                let package_name = vulnerability.id.split('@').next().unwrap_or("unknown").to_string();
+                
+                let vuln = crate::types::Vulnerability {
+                    id: vulnerability.id.clone(),
+                    summary: vulnerability.summary.clone(),
+                    severity: vulnerability.severity.clone(),
+                    fixed_version: vulnerability.fixed_version.clone(),
+                    references: vulnerability.references.clone(),
+                };
+                
+                package_vulns.entry(package_name).or_insert_with(Vec::new).push(vuln);
+            }
+            
+            // Create PackageVulnerability entries
+            for (package_name, vulns) in package_vulns {
+                let package_vuln = crate::types::PackageVulnerability {
+                    package: crate::types::Package {
+                        name: package_name,
+                        version: "unknown".to_string(), // We don't have version info from automation scan
+                        ecosystem: crate::types::Ecosystem::Npm, // Default, could be improved
+                        source_file: PathBuf::from(format!("{}/{}", scan_result.repository, scan_result.branch)),
+                    },
+                    vulnerabilities: vulns,
+                };
+                all_packages.push(package_vuln);
+            }
+        }
+
+        let total_vulnerabilities = results.iter().map(|r| r.vulnerabilities.len()).sum();
+        let vulnerable_packages = all_packages.len();
+        let total_packages = results.iter().map(|r| r.total_packages).sum();
+
+        let combined_scan_result = crate::types::ScanResult {
+            scan_timestamp: chrono::Utc::now().to_rfc3339(),
+            total_packages,
+            vulnerable_packages,
+            total_vulnerabilities,
+            packages: all_packages,
+            summary_by_ecosystem: std::collections::HashMap::new(), // Empty for now
+        };
+
+        // Create scan config for reporter
+        let scan_config = ScanConfig {
+            target_path: workspace,
+            output_file: output,
+            recursive: true,
+            ecosystems: None,
+            include_dev_dependencies: true,
+            format,
+            quiet: false,
+            high_only: false,
+        };
+
+        // Generate report
+        let reporter = Reporter::new();
+        reporter.generate_report(&combined_scan_result, &scan_config).await?;
     }
 
     Ok(())
