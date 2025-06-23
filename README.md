@@ -17,13 +17,6 @@
 
 Vulfy is a lightning-fast vulnerability scanner that checks your project dependencies for known security issues across multiple programming languages. Built with Rust for maximum performance, it integrates with the OSV.dev database to provide accurate, up-to-date vulnerability information.
 
-**Why Vulfy?** Born from frustration with slow, bloated security tools that take forever to scan projects. Vulfy gets straight to the point: find vulnerabilities fast, report them clearly, and get out of your way.
-
-### 🆕 **What's New:** Just Added 3 More Ecosystems!
-We've expanded beyond the original 6 languages to now support **9 complete ecosystems**:
-- ⚙️ **C/C++** (vcpkg, CMake, Conan) - *NEW!*
-- 🐘 **PHP** (Composer, PHPUnit) - *NEW!*  
-- 🔷 **.NET** (NuGet, MSBuild) - *NEW!*
 
 ## ✨ Features
 
@@ -114,7 +107,6 @@ OPTIONS:
 | 🐘 **PHP** | `composer.json`, `composer.lock`, `phpunit.xml`, `phpunit.xml.dist` | 🆕 **NEW!** |
 | 🔷 **.NET** | `*.csproj`, `*.vbproj`, `*.fsproj`, `packages.config`, `Directory.Build.props`, `Directory.Packages.props`, `*.nuspec` | 🆕 **NEW!** |
 
-> **📈 Growing Fast:** From 6 to 9 ecosystems - that's 50% more coverage! We're constantly adding support for more languages and package managers.
 
 ## 📋 Example Output
 
