@@ -7,6 +7,7 @@ use crate::types::{Ecosystem, ScanConfig, ReportFormat};
 use crate::scanner::Scanner;
 use crate::matcher::VulnerabilityMatcher;
 use crate::reporter::Reporter;
+use crate::automation::{AutomationConfig, scheduler::AutomationScheduler};
 
 #[derive(Parser)]
 #[command(name = "vulfy")]
@@ -24,6 +25,12 @@ pub enum Commands {
     Scan {
         #[command(subcommand)]
         scan_type: ScanType,
+    },
+    /// Automation and monitoring commands
+    #[command(name = "automation")]
+    Automation {
+        #[command(subcommand)]
+        automation_command: AutomationCommand,
     },
 }
 
@@ -66,6 +73,72 @@ pub enum ScanType {
     },
 }
 
+#[derive(Subcommand)]
+pub enum AutomationCommand {
+    /// Initialize automation configuration
+    #[command(name = "init")]
+    Init {
+        /// Configuration file path
+        #[arg(short, long, default_value = "vulfy-automation.toml")]
+        config: PathBuf,
+        
+        /// Create with example repositories and policies
+        #[arg(long)]
+        with_examples: bool,
+    },
+    /// Start the automation scheduler
+    #[command(name = "start")]
+    Start {
+        /// Configuration file path
+        #[arg(short, long, default_value = "vulfy-automation.toml")]
+        config: PathBuf,
+        
+        /// Workspace directory for cloning repositories
+        #[arg(short, long, default_value = "vulfy-workspace")]
+        workspace: PathBuf,
+        
+        /// Run in foreground (default runs as daemon)
+        #[arg(long)]
+        foreground: bool,
+    },
+    /// Stop the automation scheduler
+    #[command(name = "stop")]
+    Stop {
+        /// Configuration file path
+        #[arg(short, long, default_value = "vulfy-automation.toml")]
+        config: PathBuf,
+    },
+    /// Run a manual scan using automation config
+    #[command(name = "run")]
+    Run {
+        /// Configuration file path
+        #[arg(short, long, default_value = "vulfy-automation.toml")]
+        config: PathBuf,
+        
+        /// Workspace directory for cloning repositories
+        #[arg(short, long, default_value = "vulfy-workspace")]
+        workspace: PathBuf,
+        
+        /// Specific repository to scan (optional)
+        #[arg(short, long)]
+        repository: Option<String>,
+    },
+    /// Show automation status and next scheduled run
+    #[command(name = "status")]
+    Status {
+        /// Configuration file path
+        #[arg(short, long, default_value = "vulfy-automation.toml")]
+        config: PathBuf,
+    },
+    /// Validate automation configuration
+    #[command(name = "validate")]
+    Validate {
+        /// Configuration file path
+        #[arg(short, long, default_value = "vulfy-automation.toml")]
+        config: PathBuf,
+    },
+}
+
 impl Cli {
     pub async fn execute(self) -> VulfyResult<()> {
         match self.command {
@@ -101,6 +174,9 @@ impl Cli {
                         execute_scan(config).await
                     }
                 }
+            }
+            Commands::Automation { automation_command } => {
+                execute_automation_command(automation_command).await
             }
         }
     }
@@ -229,6 +305,394 @@ async fn execute_scan(config: ScanConfig) -> VulfyResult<()> {
     // Generate report
     let reporter = Reporter::new();
     reporter.generate_report(&scan_result, &config).await?;
+
+    Ok(())
+}
+
+async fn execute_automation_command(command: AutomationCommand) -> VulfyResult<()> {
+    match command {
+        AutomationCommand::Init { config, with_examples } => {
+            execute_automation_init(config, with_examples).await
+        }
+        AutomationCommand::Start { config, workspace, foreground } => {
+            execute_automation_start(config, workspace, foreground).await
+        }
+        AutomationCommand::Stop { config } => {
+            execute_automation_stop(config).await
+        }
+        AutomationCommand::Run { config, workspace, repository } => {
+            execute_automation_run(config, workspace, repository).await
+        }
+        AutomationCommand::Status { config } => {
+            execute_automation_status(config).await
+        }
+        AutomationCommand::Validate { config } => {
+            execute_automation_validate(config).await
+        }
+    }
+}
+
+async fn execute_automation_init(config_path: PathBuf, with_examples: bool) -> VulfyResult<()> {
+    use crate::automation::{Repository, Webhook, WebhookType, Credentials};
+    use crate::automation::{ScheduleFrequency, policy::PolicyEngine};
+
+    info!("Initializing automation configuration at: {}", config_path.display());
+
+    if config_path.exists() {
+        return Err(VulfyError::Config {
+            message: format!("Configuration file already exists: {}", config_path.display()),
+        });
+    }
+
+    let mut automation_config = AutomationConfig::default_config();
+
+    if with_examples {
+        // Add example repositories
+        automation_config.repositories = vec![
+            Repository {
+                name: "my-web-app".to_string(),
+                url: "https://github.com/user/my-web-app.git".to_string(),
+                branches: Some(vec!["main".to_string(), "develop".to_string()]),
+                local_path: None,
+                credentials: Some(Credentials {
+                    username: Some("git".to_string()),
+                    token: Some("your_github_token_here".to_string()),
+                    ssh_key_path: None,
+                }),
+                ecosystems: Some(vec![crate::types::Ecosystem::Npm, crate::types::Ecosystem::PyPI]),
+            },
+            Repository {
+                name: "my-api".to_string(),
+                url: "https://github.com/user/my-api.git".to_string(),
+                branches: None, // Only main branch
+                local_path: None,
+                credentials: None, // Public repository
+                ecosystems: Some(vec![crate::types::Ecosystem::Cargo]),
+            },
+        ];
+
+        // Add example webhooks
+        automation_config.notifications.webhooks = vec![
+            Webhook {
+                name: "Discord Security Channel".to_string(),
+                url: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN".to_string(),
+                webhook_type: WebhookType::Discord,
+                enabled: true,
+            },
+            Webhook {
+                name: "Slack Security Alerts".to_string(),
+                url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK".to_string(),
+                webhook_type: WebhookType::Slack,
+                enabled: false, // Disabled by default
+            },
+        ];
+
+        // Add example policies
+        automation_config.policies = PolicyEngine::create_default_policies();
+
+        // Set daily schedule at 2:00 AM
+        automation_config.schedule.frequency = ScheduleFrequency::Daily;
+        automation_config.schedule.time = Some("02:00".to_string());
+    }
+
+    // Save configuration
+    automation_config.save_to_file(&config_path).await.map_err(|e| {
+        VulfyError::Config {
+            message: format!("Failed to save configuration: {}", e),
+        }
+    })?;
+
+    info!("✅ Automation configuration created successfully!");
+    
+    if with_examples {
+        println!("\n📝 Example configuration created with:");
+        println!("   • 2 example repositories");
+        println!("   • Discord and Slack webhook templates");
+        println!("   • Default security policies");
+        println!("   • Daily scan schedule at 2:00 AM");
+        println!("\n🔧 Edit {} to customize your setup", config_path.display());
+        println!("💡 Remember to update webhook URLs and repository credentials!");
+    } else {
+        println!("\n📝 Basic configuration created");
+        println!("🔧 Edit {} to add repositories, webhooks, and policies", config_path.display());
+    }
+
+    Ok(())
+}
+
+async fn execute_automation_start(config_path: PathBuf, workspace: PathBuf, foreground: bool) -> VulfyResult<()> {
+    info!("Starting automation scheduler...");
+
+    // Load configuration
+    let config = AutomationConfig::load_from_file(&config_path).await.map_err(|e| {
+        VulfyError::Config {
+            message: format!("Failed to load configuration from {}: {}", config_path.display(), e),
+        }
+    })?;
+
+    // Validate configuration
+    validate_automation_config(&config)?;
+
+    // Create and start scheduler
+    let mut scheduler = AutomationScheduler::new(config, workspace).await.map_err(|e| {
+        VulfyError::Config {
+            message: format!("Failed to create scheduler: {}", e),
+        }
+    })?;
+
+    scheduler.start().await.map_err(|e| {
+        VulfyError::Config {
+            message: format!("Failed to start scheduler: {}", e),
+        }
+    })?;
+
+    if let Some(next_run) = scheduler.next_run_time().await {
+        info!("Next scheduled scan: {}", next_run.format("%Y-%m-%d %H:%M:%S UTC"));
+    }
+
+    if foreground {
+        info!("Running in foreground mode. Press Ctrl+C to stop.");
+        // Keep the scheduler running
+        tokio::signal::ctrl_c().await.map_err(|e| {
+            VulfyError::Config {
+                message: format!("Failed to listen for shutdown signal: {}", e),
+            }
+        })?;
+        
+        info!("Shutting down scheduler...");
+        scheduler.stop().await.map_err(|e| {
+            VulfyError::Config {
+                message: format!("Failed to stop scheduler: {}", e),
+            }
+        })?;
+    } else {
+        info!("Scheduler started in background mode");
+        // In a real implementation, you might want to daemonize the process here
+        println!("⚠️ Background mode not fully implemented yet. Use --foreground for now.");
+    }
+
+    Ok(())
+}
+
+async fn execute_automation_stop(_config_path: PathBuf) -> VulfyResult<()> {
+    info!("Stopping automation scheduler...");
+    
+    // In a real implementation, this would connect to a running scheduler process
+    // For now, we'll just indicate the operation
+    println!("⚠️ Stop command not fully implemented yet.");
+    println!("💡 If running in foreground mode, use Ctrl+C to stop.");
+    
+    Ok(())
+}
+
+async fn execute_automation_run(config_path: PathBuf, workspace: PathBuf, repository: Option<String>) -> VulfyResult<()> {
+    info!("Running manual automation scan...");
+
+    // Load configuration
+    let config = AutomationConfig::load_from_file(&config_path).await.map_err(|e| {
+        VulfyError::Config {
+            message: format!("Failed to load configuration from {}: {}", config_path.display(), e),
+        }
+    })?;
+
+    // Filter repositories if specified
+    let mut filtered_config = config.clone();
+    if let Some(repo_name) = repository {
+        filtered_config.repositories.retain(|r| r.name == repo_name);
+        if filtered_config.repositories.is_empty() {
+            return Err(VulfyError::Config {
+                message: format!("Repository '{}' not found in configuration", repo_name),
+            });
+        }
+        info!("Scanning only repository: {}", repo_name);
+    }
+
+    // Create scheduler and run manual scan
+    let scheduler = AutomationScheduler::new(filtered_config, workspace).await.map_err(|e| {
+        VulfyError::Config {
+            message: format!("Failed to create scheduler: {}", e),
+        }
+    })?;
+
+    let results = scheduler.run_manual_scan().await.map_err(|e| {
+        VulfyError::Config {
+            message: format!("Manual scan failed: {}", e),
+        }
+    })?;
+
+    // Print summary
+    let total_repos = results.len();
+    let total_vulns: usize = results.iter().map(|r| r.vulnerabilities.len()).sum();
+    let repos_with_vulns = results.iter().filter(|r| !r.vulnerabilities.is_empty()).count();
+
+    println!("\n🔍 Manual Scan Results:");
+    println!("📊 Scanned {} repositories", total_repos);
+    println!("⚠️  Found {} vulnerabilities across {} repositories", total_vulns, repos_with_vulns);
+    
+    for result in &results {
+        if !result.vulnerabilities.is_empty() {
+            println!("   • {}/{}: {} vulnerabilities", result.repository, result.branch, result.vulnerabilities.len());
+        }
+    }
+
+    Ok(())
+}
+
+async fn execute_automation_status(config_path: PathBuf) -> VulfyResult<()> {
+    info!("Checking automation status...");
+
+    if !config_path.exists() {
+        println!("❌ Configuration file not found: {}", config_path.display());
+        println!("💡 Run 'vulfy automation init' to create a configuration");
+        return Ok(());
+    }
+
+    // Load and validate configuration
+    let config = AutomationConfig::load_from_file(&config_path).await.map_err(|e| {
+        VulfyError::Config {
+            message: format!("Failed to load configuration: {}", e),
+        }
+    })?;
+
+    println!("✅ Configuration: {}", config_path.display());
+    println!("\n📊 Configuration Summary:");
+    println!("   • Repositories: {}", config.repositories.len());
+    println!("   • Webhooks: {} ({} enabled)", 
+             config.notifications.webhooks.len(),
+             config.notifications.webhooks.iter().filter(|w| w.enabled).count());
+    println!("   • Policies: {} ({} enabled)", 
+             config.policies.len(),
+             config.policies.iter().filter(|p| p.enabled).count());
+    println!("   • Schedule: {:?}", config.schedule.frequency);
+
+    // Show repository details
+    if !config.repositories.is_empty() {
+        println!("\n📂 Repositories:");
+        for repo in &config.repositories {
+            let branch_info = if let Some(branches) = &repo.branches {
+                format!("{} branches", branches.len())
+            } else {
+                "default branch".to_string()
+            };
+            println!("   • {} - {} ({})", repo.name, repo.url, branch_info);
+        }
+    }
+
+    // Show webhook details
+    if !config.notifications.webhooks.is_empty() {
+        println!("\n🔔 Webhooks:");
+        for webhook in &config.notifications.webhooks {
+            let status = if webhook.enabled { "✅" } else { "❌" };
+            println!("   {} {} ({})", status, webhook.name, webhook.webhook_type);
+        }
+    }
+
+    // Show policy details  
+    if !config.policies.is_empty() {
+        println!("\n📋 Policies:");
+        for policy in &config.policies {
+            let status = if policy.enabled { "✅" } else { "❌" };
+            println!("   {} {}", status, policy.name);
+        }
+    }
+
+    // TODO: Check if scheduler is actually running
+    println!("\n🤖 Scheduler Status:");
+    println!("   ⚠️ Status checking not fully implemented yet");
+
+    Ok(())
+}
+
+async fn execute_automation_validate(config_path: PathBuf) -> VulfyResult<()> {
+    info!("Validating automation configuration...");
+
+    if !config_path.exists() {
+        return Err(VulfyError::Config {
+            message: format!("Configuration file not found: {}", config_path.display()),
+        });
+    }
+
+    // Load configuration
+    let config = AutomationConfig::load_from_file(&config_path).await.map_err(|e| {
+        VulfyError::Config {
+            message: format!("Failed to load configuration: {}", e),
+        }
+    })?;
+
+    // Validate configuration
+    validate_automation_config(&config)?;
+
+    println!("✅ Configuration is valid!");
+    println!("📊 {} repositories, {} webhooks, {} policies configured", 
+             config.repositories.len(),
+             config.notifications.webhooks.len(),
+             config.policies.len());
+
+    Ok(())
+}
+
+fn validate_automation_config(config: &AutomationConfig) -> VulfyResult<()> {
+    // Validate repositories
+    if config.repositories.is_empty() {
+        return Err(VulfyError::Config {
+            message: "No repositories configured".to_string(),
+        });
+    }
+
+    for repo in &config.repositories {
+        if repo.name.is_empty() {
+            return Err(VulfyError::Config {
+                message: "Repository name cannot be empty".to_string(),
+            });
+        }
+        if repo.url.is_empty() {
+            return Err(VulfyError::Config {
+                message: format!("Repository '{}' has empty URL", repo.name),
+            });
+        }
+        // Basic URL validation
+        if !repo.url.starts_with("http") && !repo.url.starts_with("git@") {
+            return Err(VulfyError::Config {
+                message: format!("Repository '{}' has invalid URL format", repo.name),
+            });
+        }
+    }
+
+    // Validate webhooks
+    for webhook in &config.notifications.webhooks {
+        if webhook.enabled && webhook.url.is_empty() {
+            return Err(VulfyError::Config {
+                message: format!("Enabled webhook '{}' has empty URL", webhook.name),
+            });
+        }
+        if webhook.enabled && !webhook.url.starts_with("http") {
+            return Err(VulfyError::Config {
+                message: format!("Webhook '{}' has invalid URL format", webhook.name),
+            });
+        }
+    }
+
+    // Validate schedule time format
+    if let Some(time) = &config.schedule.time {
+        let parts: Vec<&str> = time.split(':').collect();
+        if parts.len() != 2 {
+            return Err(VulfyError::Config {
+                message: format!("Invalid time format '{}'. Use HH:MM format", time),
+            });
+        }
+        
+        if let (Ok(hour), Ok(minute)) = (parts[0].parse::<u8>(), parts[1].parse::<u8>()) {
+            if hour >= 24 || minute >= 60 {
+                return Err(VulfyError::Config {
+                    message: format!("Invalid time '{}'. Hour must be 0-23, minute 0-59", time),
+                });
+            }
+        } else {
+            return Err(VulfyError::Config {
+                message: format!("Invalid time format '{}'. Use HH:MM format", time),
+            });
+        }
+    }
 
     Ok(())
 } 
