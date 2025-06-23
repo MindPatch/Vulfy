@@ -1768,6 +1768,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
+ "cron",
  "futures",
  "git2",
  "glob",
