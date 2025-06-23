@@ -4,6 +4,22 @@ version = "0.1.0"
 edition = "2021"
 description = "Cross-language CLI-based package version scanner for detecting known vulnerabilities"
 license = "MIT"
+authors = ["MindPatch <mindpatch@example.com>"]
+homepage = "https://github.com/MindPatch/Vulfy"
+repository = "https://github.com/MindPatch/Vulfy"
+documentation = "https://github.com/MindPatch/Vulfy#readme"
+keywords = ["security", "vulnerability", "scanner", "cli", "automation"]
+categories = ["command-line-utilities", "development-tools", "web-programming"]
+readme = "README.md"
+exclude = [
+    "vulfy-workspace/",
+    "vulfy-exports/",
+    "automation-results.json",
+    "vulfy-scan-result.json",
+    "test_*",
+    "assets/",
+    ".github/",
+]
 
 [[bin]]
 name = "vulfy"

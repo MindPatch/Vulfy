@@ -9,57 +9,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      version: ${{ steps.get_version.outputs.version }}
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Get version from tag
-      id: get_version
-      run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ steps.get_version.outputs.version }}
-        body: |
-          # Vulfy ${{ steps.get_version.outputs.version }}
-          
-          Cross-language vulnerability scanner with automation features.
-          
-          ## Features
-          - Multi-language support (Rust, Node.js, Python, PHP, .NET, C++)
-          - Automation and scheduling capabilities
-          - Webhook notifications (Discord, Slack)
-          - Advanced filtering and policies
-          
-          ## Binaries
-          Choose the appropriate binary for your platform:
-          - **Linux x64**: `vulfy-x86_64-unknown-linux-gnu`
-          - **Windows x64**: `vulfy-x86_64-pc-windows-msvc.exe`
-          - **macOS Intel**: `vulfy-x86_64-apple-darwin`
-          - **macOS Apple Silicon**: `vulfy-aarch64-apple-darwin`
-          
-          ## Installation
-          1. Download the appropriate binary
-          2. Make it executable: `chmod +x vulfy-*` (Linux/macOS)
-          3. Move to PATH: `sudo mv vulfy-* /usr/local/bin/vulfy`
-          4. Run: `vulfy --help`
-        draft: false
-        prerelease: false
-
   build-release:
     name: Build Release Assets
-    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -124,19 +75,72 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: cp target/${{ matrix.target }}/release/vulfy.exe ${{ matrix.name }}
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.name }}
+        path: ${{ matrix.name }}
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build-release
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: Get version from tag
+      id: get_version
+      run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./${{ matrix.name }}
-        asset_name: ${{ matrix.name }}
-        asset_content_type: application/octet-stream
+        name: Release ${{ steps.get_version.outputs.version }}
+        body: |
+          # Vulfy ${{ steps.get_version.outputs.version }}
+          
+          Cross-language vulnerability scanner with automation features.
+          
+          ## Features
+          - Multi-language support (Rust, Node.js, Python, PHP, .NET, C++)
+          - Automation and scheduling capabilities
+          - Webhook notifications (Discord, Slack)
+          - Advanced filtering and policies
+          
+          ## Binaries
+          Choose the appropriate binary for your platform:
+          - **Linux x64**: `vulfy-x86_64-unknown-linux-gnu`
+          - **Windows x64**: `vulfy-x86_64-pc-windows-msvc.exe`
+          - **macOS Intel**: `vulfy-x86_64-apple-darwin`
+          - **macOS Apple Silicon**: `vulfy-aarch64-apple-darwin`
+          
+          ## Installation
+          1. Download the appropriate binary
+          2. Make it executable: `chmod +x vulfy-*` (Linux/macOS)
+          3. Move to PATH: `sudo mv vulfy-* /usr/local/bin/vulfy`
+          4. Run: `vulfy --help`
+        files: |
+          ./artifacts/vulfy-x86_64-unknown-linux-gnu/vulfy-x86_64-unknown-linux-gnu
+          ./artifacts/vulfy-x86_64-pc-windows-msvc.exe/vulfy-x86_64-pc-windows-msvc.exe
+          ./artifacts/vulfy-x86_64-apple-darwin/vulfy-x86_64-apple-darwin
+          ./artifacts/vulfy-aarch64-apple-darwin/vulfy-aarch64-apple-darwin
+        draft: false
+        prerelease: false
 
   publish-crates:
     name: Publish to crates.io
-    needs: [create-release, build-release]
+    needs: create-release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
