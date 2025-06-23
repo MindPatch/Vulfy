@@ -19,13 +19,19 @@ Vulfy is a lightning-fast vulnerability scanner that checks your project depende
 
 **Why Vulfy?** Born from frustration with slow, bloated security tools that take forever to scan projects. Vulfy gets straight to the point: find vulnerabilities fast, report them clearly, and get out of your way.
 
+### 🆕 **What's New:** Just Added 3 More Ecosystems!
+We've expanded beyond the original 6 languages to now support **9 complete ecosystems**:
+- ⚙️ **C/C++** (vcpkg, CMake, Conan) - *NEW!*
+- 🐘 **PHP** (Composer, PHPUnit) - *NEW!*  
+- 🔷 **.NET** (NuGet, MSBuild) - *NEW!*
+
 ## ✨ Features
 
-- 🔥 **Lightning Fast** - Async Rust architecture with concurrent API calls
-- 🌍 **Multi-Language Support** - npm, pip, cargo, maven, go, ruby, and more
-- 📊 **Flexible Output** - Table, JSON, CSV, SARIF formats for any workflow
-- 🎯 **OSV.dev Integration** - Real vulnerability data from Google's Open Source Vulnerabilities database
-- ⚡ **Zero Configuration** - Works out of the box with sensible defaults
+- 🔥 **Lightning Fast** - Async Rust goes brrrr  
+- 🌍 **Multi-Ecosystem** - **9 languages covered**: npm, Python, Rust, Java, Go, Ruby, C/C++, PHP, .NET
+- 📊 **Multiple Outputs** - Pretty tables, JSON, CSV, SARIF, whatever floats your boat  
+- 🎯 **OSV.dev Integration** - Real vulnerability data, not snake oil  
+- ⚡ **Zero Config** - Point, shoot, done  
 - 🔄 **CI/CD Ready** - Perfect for automated security pipelines
 - 🎨 **Beautiful Reports** - Color-coded severity levels and clean formatting
 
@@ -73,6 +79,9 @@ vulfy scan packages --format sarif --output vulfy.sarif
 
 # Exit with error code if high-severity vulnerabilities found
 vulfy scan packages --high-only --quiet
+
+# Scan only the new ecosystems we just added!
+vulfy scan packages --ecosystems vcpkg,composer,nuget
 ```
 
 ## 🛠️ Usage
@@ -81,28 +90,31 @@ vulfy scan packages --high-only --quiet
 vulfy scan packages [OPTIONS]
 
 OPTIONS:
-    -p, --path <PATH>              Directory to scan [default: current directory]
-    -f, --format <FORMAT>          Output format: table, json, csv, summary, sarif [default: table]
-    -o, --output <FILE>            Write output to file instead of stdout
-    -e, --ecosystems <LIST>        Scan specific ecosystems only (npm,pypi,cargo,maven,go,ruby)
-    -q, --quiet                    Suppress progress messages
-        --high-only                Show only high and critical severity vulnerabilities
-        --no-recursive             Don't scan subdirectories
-        --no-dev-deps              Skip development dependencies
-        --timeout <SECONDS>        API request timeout [default: 30]
-        --max-concurrent <N>       Maximum concurrent API requests [default: 10]
+    -p, --path <PATH>              Where to scan [default: current directory]
+    -f, --format <FORMAT>          Output format: table, json, csv, summary, sarif
+    -o, --output <FILE>            Save to file instead of stdout
+    -e, --ecosystems <LIST>        Only scan specific ecosystems (npm,pypi,cargo,maven,go,rubygems,vcpkg,composer,nuget)
+    -q, --quiet                    Shut up and scan
+    --high-only                    Only show the scary vulnerabilities
+    --no-recursive                 Don't dig into subdirectories
+    --no-dev-deps                  Skip development dependencies
 ```
 
 ## 🎯 Supported Ecosystems
 
-| Language | Package Files | Lock Files |
-|----------|---------------|------------|
-| **JavaScript/Node.js** | `package.json` | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `npm-shrinkwrap.json` |
-| **Python** | `requirements.txt`, `setup.py`, `setup.cfg`, `pyproject.toml` | `Pipfile.lock`, `poetry.lock`, `environment.yml` |
-| **Rust** | `Cargo.toml` | `Cargo.lock` |
-| **Java** | `pom.xml`, `build.gradle`, `build.gradle.kts`, `ivy.xml` | - |
-| **Go** | `go.mod`, `go.work` | `go.sum`, `go.work.sum`, `vendor/modules.txt` |
-| **Ruby** | `Gemfile`, `gems.rb`, `*.gemspec` | `Gemfile.lock` |
+| Ecosystem | Files We Hunt | Status |
+|-----------|---------------|--------|
+| 📦 **npm** | `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `package.json`, `pnpm-lock.yaml` | ✅ |
+| 🐍 **Python** | `requirements.txt`, `Pipfile`, `Pipfile.lock`, `poetry.lock`, `pyproject.toml`, `setup.py`, `setup.cfg`, `environment.yml` (conda) | ✅ |
+| 🦀 **Rust** | `Cargo.lock`, `Cargo.toml` | ✅ |
+| ☕ **Java** | `pom.xml`, `build.gradle`, `build.gradle.kts`, `ivy.xml` | ✅ |
+| 🐹 **Go** | `go.mod`, `go.sum`, `go.work`, `go.work.sum`, `vendor/modules.txt` | ✅ |
+| 💎 **Ruby** | `Gemfile.lock`, `Gemfile`, `gems.rb`, `*.gemspec` | ✅ |
+| ⚙️ **C/C++** | `vcpkg.json`, `CMakeLists.txt`, `conanfile.txt`, `conanfile.py` | 🆕 **NEW!** |
+| 🐘 **PHP** | `composer.json`, `composer.lock`, `phpunit.xml`, `phpunit.xml.dist` | 🆕 **NEW!** |
+| 🔷 **.NET** | `*.csproj`, `*.vbproj`, `*.fsproj`, `packages.config`, `Directory.Build.props`, `Directory.Packages.props`, `*.nuspec` | 🆕 **NEW!** |
+
+> **📈 Growing Fast:** From 6 to 9 ecosystems - that's 50% more coverage! We're constantly adding support for more languages and package managers.
 
 ## 📋 Example Output
 
@@ -216,7 +228,6 @@ retry_attempts = 3
 - ⚡ **Watch Mode** - Real-time monitoring for new vulnerabilities
 
 ### Future Plans
-- 🔗 **Additional Ecosystems** - C/C++ (vcpkg), PHP (Composer), .NET (NuGet)
 - 🔔 **Notifications** - Slack, Discord, and email alerts
 - 🐳 **Container Scanning** - Docker image vulnerability detection
 - 📡 **Git Integration** - Continuous repository monitoring
