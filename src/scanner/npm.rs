@@ -12,7 +12,8 @@ impl PackageParser for NpmParser {
     fn can_parse(&self, file_path: &Path) -> bool {
         matches!(
             file_path.file_name().and_then(|n| n.to_str()),
-            Some("package-lock.json") | Some("yarn.lock") | Some("package.json")
+            Some("package-lock.json") | Some("yarn.lock") | Some("package.json") | 
+            Some("npm-shrinkwrap.json") | Some("pnpm-lock.yaml") | Some(".yarnrc.yml")
         )
     }
 
@@ -24,8 +25,11 @@ impl PackageParser for NpmParser {
 
         match filename {
             "package-lock.json" => self.parse_package_lock(file_path).await,
+            "npm-shrinkwrap.json" => self.parse_package_lock(file_path).await, // Same format as package-lock
             "yarn.lock" => self.parse_yarn_lock(file_path).await,
             "package.json" => self.parse_package_json(file_path).await,
+            "pnpm-lock.yaml" => self.parse_pnpm_lock(file_path).await,
+            ".yarnrc.yml" => Ok(Vec::new()), // Skip config files for now
             _ => Ok(Vec::new()),
         }
     }
@@ -160,5 +164,54 @@ impl NpmParser {
         }
 
         Ok(packages)
+    }
+
+    async fn parse_pnpm_lock(&self, file_path: &Path) -> VulfyResult<Vec<Package>> {
+        let content = tokio::fs::read_to_string(file_path).await?;
+        let mut packages = Vec::new();
+
+        // Simple YAML-like parsing for pnpm-lock.yaml
+        // Look for package entries like: /package-name/1.0.0:
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with('/') && line.contains('/') && line.ends_with(':') {
+                let package_spec = line.trim_end_matches(':');
+                if let Some(parts) = self.parse_pnpm_package_spec(package_spec) {
+                    packages.push(Package {
+                        name: parts.0,
+                        version: parts.1,
+                        ecosystem: Ecosystem::Npm,
+                        source_file: file_path.to_path_buf(),
+                    });
+                }
+            }
+        }
+
+        Ok(packages)
+    }
+
+    fn parse_pnpm_package_spec(&self, spec: &str) -> Option<(String, String)> {
+        // Parse format like: /package-name/1.0.0 or /@scope/package-name/1.0.0
+        if !spec.starts_with('/') {
+            return None;
+        }
+
+        let spec = &spec[1..]; // Remove leading /
+        let parts: Vec<&str> = spec.split('/').collect();
+
+        if parts.len() >= 2 {
+            let version = parts.last()?.to_string();
+            let name = if spec.starts_with('@') && parts.len() >= 3 {
+                // Scoped package: @scope/package/version
+                format!("@{}/{}", parts[0], parts[1])
+            } else {
+                // Regular package: package/version
+                parts[0].to_string()
+            };
+
+            Some((name, version))
+        } else {
+            None
+        }
     }
 } 

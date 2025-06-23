@@ -13,13 +13,33 @@ impl PackageParser for JavaParser {
     fn can_parse(&self, file_path: &Path) -> bool {
         matches!(
             file_path.file_name().and_then(|n| n.to_str()),
-            Some("pom.xml")
+            Some("pom.xml") | Some("build.gradle") | Some("build.gradle.kts") | 
+            Some("gradle.properties") | Some("ivy.xml")
         )
     }
 
     async fn parse(&self, file_path: &Path) -> VulfyResult<Vec<Package>> {
-        let content = tokio::fs::read_to_string(file_path).await?;
-        self.parse_pom_xml(&content, file_path).await
+        let filename = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        match filename {
+            "pom.xml" => {
+                let content = tokio::fs::read_to_string(file_path).await?;
+                self.parse_pom_xml(&content, file_path).await
+            }
+            "build.gradle" | "build.gradle.kts" => {
+                self.parse_gradle_build(file_path).await
+            }
+            "gradle.properties" => {
+                Ok(Vec::new()) // Skip properties files for now
+            }
+            "ivy.xml" => {
+                self.parse_ivy_xml(file_path).await
+            }
+            _ => Ok(Vec::new()),
+        }
     }
 
     fn ecosystem(&self) -> Ecosystem {
@@ -176,6 +196,148 @@ impl JavaParser {
             }
         }
         
+        String::new()
+    }
+
+    async fn parse_gradle_build(&self, file_path: &Path) -> VulfyResult<Vec<Package>> {
+        let content = tokio::fs::read_to_string(file_path).await?;
+        let mut packages = Vec::new();
+
+        // Parse Gradle dependencies from build.gradle or build.gradle.kts
+        let lines: Vec<&str> = content.lines().collect();
+        let mut in_dependencies = false;
+
+        for line in lines {
+            let line = line.trim();
+            
+            if line.contains("dependencies") && line.contains('{') {
+                in_dependencies = true;
+                continue;
+            } else if in_dependencies && line.contains('}') {
+                in_dependencies = false;
+                continue;
+            }
+
+            if in_dependencies {
+                if let Some(dependency) = self.parse_gradle_dependency_line(line) {
+                    packages.push(Package {
+                        name: dependency.0,
+                        version: dependency.1,
+                        ecosystem: Ecosystem::Maven,
+                        source_file: file_path.to_path_buf(),
+                    });
+                }
+            }
+        }
+
+        Ok(packages)
+    }
+
+    async fn parse_ivy_xml(&self, file_path: &Path) -> VulfyResult<Vec<Package>> {
+        let content = tokio::fs::read_to_string(file_path).await?;
+        let mut packages = Vec::new();
+
+        // Simple XML parsing for ivy.xml dependencies
+        for line in content.lines() {
+            let line = line.trim();
+            if line.contains("<dependency") && (line.contains("org=") || line.contains("name=")) {
+                if let Some(dependency) = self.parse_ivy_dependency_line(line) {
+                    packages.push(Package {
+                        name: dependency.0,
+                        version: dependency.1,
+                        ecosystem: Ecosystem::Maven,
+                        source_file: file_path.to_path_buf(),
+                    });
+                }
+            }
+        }
+
+        Ok(packages)
+    }
+
+    fn parse_gradle_dependency_line(&self, line: &str) -> Option<(String, String)> {
+        // Parse Gradle dependency formats:
+        // implementation 'group:artifact:version'
+        // implementation "group:artifact:version"
+        // implementation group: 'group', name: 'artifact', version: 'version'
+        
+        let line = line.trim();
+        
+        // Skip comments and non-dependency lines
+        if line.starts_with("//") || line.starts_with("/*") || !line.contains("'") && !line.contains('"') {
+            return None;
+        }
+
+        // Format: implementation 'group:artifact:version'
+        if let Some(quote_start) = line.find('\'').or_else(|| line.find('"')) {
+            let quote_char = line.chars().nth(quote_start).unwrap();
+            if let Some(quote_end) = line[quote_start + 1..].find(quote_char) {
+                let dependency_str = &line[quote_start + 1..quote_start + 1 + quote_end];
+                let parts: Vec<&str> = dependency_str.split(':').collect();
+                
+                if parts.len() >= 3 {
+                    let group = parts[0];
+                    let artifact = parts[1];
+                    let version = parts[2];
+                    return Some((format!("{}:{}", group, artifact), version.to_string()));
+                }
+            }
+        }
+
+        // Format: implementation group: 'group', name: 'artifact', version: 'version'
+        if line.contains("group:") && line.contains("name:") && line.contains("version:") {
+            let group = self.extract_gradle_property(line, "group");
+            let name = self.extract_gradle_property(line, "name");
+            let version = self.extract_gradle_property(line, "version");
+            
+            if !group.is_empty() && !name.is_empty() && !version.is_empty() {
+                return Some((format!("{}:{}", group, name), version));
+            }
+        }
+
+        None
+    }
+
+    fn parse_ivy_dependency_line(&self, line: &str) -> Option<(String, String)> {
+        // Parse ivy.xml dependency format:
+        // <dependency org="group" name="artifact" rev="version"/>
+        
+        let org = self.extract_xml_attribute(line, "org");
+        let name = self.extract_xml_attribute(line, "name");
+        let rev = self.extract_xml_attribute(line, "rev");
+        
+        if !org.is_empty() && !name.is_empty() && !rev.is_empty() {
+            Some((format!("{}:{}", org, name), rev))
+        } else {
+            None
+        }
+    }
+
+    fn extract_gradle_property(&self, line: &str, property: &str) -> String {
+        let pattern = format!("{}:", property);
+        if let Some(start) = line.find(&pattern) {
+            let start_pos = start + pattern.len();
+            let rest = &line[start_pos..].trim();
+            
+            // Extract quoted value
+            if let Some(quote_start) = rest.find('\'').or_else(|| rest.find('"')) {
+                let quote_char = rest.chars().nth(quote_start).unwrap();
+                if let Some(quote_end) = rest[quote_start + 1..].find(quote_char) {
+                    return rest[quote_start + 1..quote_start + 1 + quote_end].to_string();
+                }
+            }
+        }
+        String::new()
+    }
+
+    fn extract_xml_attribute(&self, line: &str, attr: &str) -> String {
+        let pattern = format!("{}=\"", attr);
+        if let Some(start) = line.find(&pattern) {
+            let start_pos = start + pattern.len();
+            if let Some(end) = line[start_pos..].find('"') {
+                return line[start_pos..start_pos + end].to_string();
+            }
+        }
         String::new()
     }
 } 

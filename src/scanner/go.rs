@@ -9,10 +9,11 @@ pub struct GoParser;
 
 impl PackageParser for GoParser {
     fn can_parse(&self, file_path: &Path) -> bool {
+        let filename = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
         matches!(
-            file_path.file_name().and_then(|n| n.to_str()),
-            Some("go.mod") | Some("go.sum")
-        )
+            filename,
+            "go.mod" | "go.sum" | "go.work" | "go.work.sum"
+        ) || (filename == "modules.txt" && file_path.parent().and_then(|p| p.file_name()).and_then(|n| n.to_str()) == Some("vendor"))
     }
 
     async fn parse(&self, file_path: &Path) -> VulfyResult<Vec<Package>> {
@@ -24,6 +25,9 @@ impl PackageParser for GoParser {
         match filename {
             "go.mod" => self.parse_go_mod(file_path).await,
             "go.sum" => self.parse_go_sum(file_path).await,
+            "go.work" => self.parse_go_work(file_path).await,
+            "go.work.sum" => self.parse_go_sum(file_path).await, // Same format as go.sum
+            "modules.txt" => self.parse_vendor_modules(file_path).await,
             _ => Ok(Vec::new()),
         }
     }
@@ -138,6 +142,81 @@ impl GoParser {
             };
             
             Some((module, version))
+        } else {
+            None
+        }
+    }
+
+    async fn parse_go_work(&self, file_path: &Path) -> VulfyResult<Vec<Package>> {
+        let content = tokio::fs::read_to_string(file_path).await?;
+        let mut packages = Vec::new();
+
+        // go.work files mainly contain module paths, not direct dependencies
+        // But we can scan for use directives that point to local modules
+        for line in content.lines() {
+            let line = line.trim();
+            
+            if line.starts_with("use ") {
+                let module_path = line[4..].trim();
+                // This would typically point to a local module
+                // We could recursively scan those go.mod files, but for now just skip
+                continue;
+            }
+            
+            // go.work files can also have require directives similar to go.mod
+            if line.starts_with("require ") {
+                if let Some((name, version)) = self.parse_require_line(&line[8..]) {
+                    packages.push(Package {
+                        name,
+                        version,
+                        ecosystem: Ecosystem::Go,
+                        source_file: file_path.to_path_buf(),
+                    });
+                }
+            }
+        }
+
+        Ok(packages)
+    }
+
+    async fn parse_vendor_modules(&self, file_path: &Path) -> VulfyResult<Vec<Package>> {
+        let content = tokio::fs::read_to_string(file_path).await?;
+        let mut packages = Vec::new();
+
+        // vendor/modules.txt format:
+        // # module_name version
+        // ## explicit; go 1.18
+        // module_name/subpackage
+        for line in content.lines() {
+            let line = line.trim();
+            
+            if line.starts_with("# ") && !line.starts_with("## ") {
+                let module_info = &line[2..];
+                let parts: Vec<&str> = module_info.split_whitespace().collect();
+                
+                if parts.len() >= 2 {
+                    let name = parts[0].to_string();
+                    let version = parts[1].to_string();
+                    
+                    packages.push(Package {
+                        name,
+                        version,
+                        ecosystem: Ecosystem::Go,
+                        source_file: file_path.to_path_buf(),
+                    });
+                }
+            }
+        }
+
+        Ok(packages)
+    }
+
+    fn parse_require_line(&self, line: &str) -> Option<(String, String)> {
+        let parts: Vec<&str> = line.trim().split_whitespace().collect();
+        if parts.len() >= 2 {
+            let name = parts[0].to_string();
+            let version = parts[1].to_string();
+            Some((name, version))
         } else {
             None
         }
