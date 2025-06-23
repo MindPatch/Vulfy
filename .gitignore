@@ -1,3 +1,6 @@
 /target
 *.json
 /target/
+**/vulfy-workspace/
+vulfy-automation.toml
+automation-results.json
