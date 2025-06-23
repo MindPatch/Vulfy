@@ -7,6 +7,7 @@ mod scanner;
 mod matcher;
 mod reporter;
 mod types;
+mod automation;
 
 use cli::Cli;
 use error::VulfyResult;

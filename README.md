@@ -27,6 +27,120 @@ Vulfy is a lightning-fast vulnerability scanner that checks your project depende
 - ⚡ **Zero Config** - Point, shoot, done  
 - 🔄 **CI/CD Ready** - Perfect for automated security pipelines
 - 🎨 **Beautiful Reports** - Color-coded severity levels and clean formatting
+- 🤖 **Automation & Monitoring** - Continuous Git repository monitoring with smart notifications
+- 📋 **Policy Engine** - Advanced vulnerability filtering with custom security policies
+- 🔔 **Multi-Platform Notifications** - Discord, Slack, and webhook integrations
+
+## 🤖 Automation & Monitoring (NEW!)
+
+Vulfy now includes a powerful automation system for continuous security monitoring of your Git repositories.
+
+### Key Automation Features
+
+- 📂 **Multi-Repository Monitoring** - Track multiple Git repos with branch-specific scanning
+- ⏰ **Flexible Scheduling** - Hourly, daily, weekly, or custom cron expressions
+- 🔔 **Smart Notifications** - Rich Discord/Slack alerts with severity-based filtering
+- 📋 **Policy Engine** - Advanced vulnerability filtering with keyword matching and severity rules
+- 🔐 **Authentication Support** - GitHub tokens, SSH keys, and private repository access
+- 🏗️ **Ecosystem Filtering** - Per-repository ecosystem targeting for focused scans
+
+### Quick Start with Automation
+
+```bash
+# Initialize automation configuration with examples
+vulfy automation init --with-examples
+
+# Validate your configuration
+vulfy automation validate
+
+# Run a manual scan
+vulfy automation run
+
+# Start the scheduler (foreground mode)
+vulfy automation start --foreground
+
+# Check status and configuration
+vulfy automation status
+```
+
+### Example Automation Configuration
+
+```toml
+# Monitor multiple repositories
+[[repositories]]
+name = "my-web-app"
+url = "https://github.com/user/my-web-app.git"
+branches = ["main", "develop", "staging"]
+ecosystems = ["npm", "pypi"]
+
+[repositories.credentials]
+username = "git"
+token = "your_github_token_here"
+
+# Schedule daily scans at 2:00 AM UTC
+[schedule]
+frequency = "daily"
+time = "02:00"
+timezone = "UTC"
+
+# Discord webhook notifications
+[[notifications.webhooks]]
+name = "Security Alerts"
+url = "https://discord.com/api/webhooks/..."
+webhook_type = "discord"
+enabled = true
+
+# Security policies for smart filtering
+[[policies]]
+name = "Critical Authentication Issues"
+enabled = true
+
+[policies.conditions]
+title_contains = ["unauth", "authentication", "bypass"]
+severity = ["high", "critical"]
+
+[policies.actions]
+notify = true
+priority = "critical"
+custom_message = "🚨 Critical auth vulnerability!"
+```
+
+### Automation CLI Commands
+
+```bash
+vulfy automation [COMMAND]
+
+COMMANDS:
+    init        Initialize automation configuration
+    start       Start the automation scheduler  
+    stop        Stop the automation scheduler
+    run         Run a manual scan using automation config
+    status      Show automation status and next scheduled run
+    validate    Validate automation configuration
+
+OPTIONS:
+    -c, --config <PATH>     Configuration file [default: vulfy-automation.toml]
+    -w, --workspace <PATH>  Workspace for cloning repos [default: vulfy-workspace]
+    --with-examples         Create config with example policies
+    --foreground            Run scheduler in foreground mode
+```
+
+### Security Policies
+
+The policy engine supports advanced vulnerability filtering:
+
+- **Keyword Matching** - Filter by title keywords (e.g., "xss", "sql injection")
+- **Severity Levels** - Set minimum severity thresholds
+- **Package Filtering** - Target specific packages with wildcard support
+- **CVE Patterns** - Regex matching for specific CVE patterns
+- **Ecosystem Targeting** - Per-ecosystem policy rules
+
+Example policies included:
+- 🚨 Critical authentication issues
+- ⚠️ XSS vulnerabilities  
+- 💉 SQL injection detection
+- 🔍 Development dependency filtering
+- 📦 NPM-specific high severity issues
 
 ## 📦 Installation
 
@@ -74,7 +188,7 @@ vulfy scan packages --format sarif --output vulfy.sarif
 vulfy scan packages --high-only --quiet
 
 # Scan only the new ecosystems we just added!
-vulfy scan packages --ecosystems vcpkg,composer,nuget
+vulfy scan packages --ecosystems vcpkg,packagist,nuget
 ```
 
 ## 🛠️ Usage
@@ -86,7 +200,7 @@ OPTIONS:
     -p, --path <PATH>              Where to scan [default: current directory]
     -f, --format <FORMAT>          Output format: table, json, csv, summary, sarif
     -o, --output <FILE>            Save to file instead of stdout
-    -e, --ecosystems <LIST>        Only scan specific ecosystems (npm,pypi,cargo,maven,go,rubygems,vcpkg,composer,nuget)
+    -e, --ecosystems <LIST>        Only scan specific ecosystems (npm,pypi,crates.io,maven,go,rubygems,vcpkg,packagist,nuget)
     -q, --quiet                    Shut up and scan
     --high-only                    Only show the scary vulnerabilities
     --no-recursive                 Don't dig into subdirectories
@@ -182,7 +296,7 @@ Create a `.vulfy.toml` file in your project root for custom settings:
 ```toml
 [scan]
 # Default ecosystems to scan
-ecosystems = ["npm", "pypi", "cargo"]
+ecosystems = ["npm", "pypi", "crates.io"]
 
 # Severity threshold (vulnerabilities below this level are ignored)
 min_severity = "medium"
@@ -213,16 +327,23 @@ retry_attempts = 3
 
 ## 🚀 Roadmap
 
+### ✅ Recently Added
+- 🤖 **Automation System** - Complete Git repository monitoring with scheduling
+- 🔔 **Multi-Platform Notifications** - Discord, Slack, and webhook integrations ✅
+- 📋 **Policy Engine** - Advanced vulnerability filtering and security policies ✅
+- 📡 **Git Integration** - Continuous repository monitoring ✅
+
 ### Coming Soon
 - 🔧 **Fix Mode** - Automatically update vulnerable packages to safe versions
 - 📈 **Trend Analysis** - Track vulnerability trends over time
-- 🎯 **Custom Policies** - Define organization-specific security rules
 - ⚡ **Watch Mode** - Real-time monitoring for new vulnerabilities
+- 💾 **Database Storage** - Historical scan data and trend analysis
 
 ### Future Plans
-- 🔔 **Notifications** - Slack, Discord, and email alerts
 - 🐳 **Container Scanning** - Docker image vulnerability detection
-- 📡 **Git Integration** - Continuous repository monitoring
+- 🌐 **Web Dashboard** - Beautiful web interface for monitoring multiple projects
+- 🔍 **AI-Powered Analysis** - Smart vulnerability prioritization with machine learning
+- 📱 **Mobile Alerts** - Push notifications for critical security issues
 
 Have feature requests? [Open an issue](https://github.com/mindPatch/vulfy/issues/new) and let's discuss!
 

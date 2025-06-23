@@ -1,0 +1,146 @@
+# Vulfy Automation Configuration
+# This file configures automated vulnerability scanning for multiple Git repositories
+
+# Repository monitoring configuration
+[[repositories]]
+name = "my-web-app"
+url = "https://github.com/user/my-web-app.git"
+branches = ["main", "develop", "staging"]  # Monitor multiple branches
+
+[repositories.credentials]
+username = "git"
+token = "your_github_token_here"  # GitHub personal access token
+
+ecosystems = ["npm", "pypi"]  # Only scan specific ecosystems for this repo
+
+[[repositories]]
+name = "my-api-service"
+url = "https://github.com/user/my-api.git"
+# branches not specified = monitor default branch only
+
+ecosystems = ["crates.io", "npm"]  # Rust and Node.js dependencies
+
+[[repositories]]  
+name = "legacy-php-app"
+url = "https://github.com/company/legacy-app.git"
+branches = ["master"]
+
+ecosystems = ["packagist", "npm"]  # PHP and JavaScript dependencies
+
+# Scan schedule configuration
+[schedule]
+frequency = "daily"           # Options: "hourly", "daily", "weekly", or custom cron
+time = "02:00"               # Daily scans at 2:00 AM
+timezone = "UTC"             # Timezone for scheduling
+
+# Notification configuration
+[notifications]
+enabled = true
+
+[notifications.filters]
+min_severity = "medium"              # Only notify for medium+ severity
+only_new_vulnerabilities = true     # Only notify for new vulnerabilities
+repositories = ["my-web-app"]       # Only notify for specific repos (optional)
+
+# Discord webhook for security alerts
+[[notifications.webhooks]]
+name = "Discord Security Channel"
+url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+webhook_type = "discord"
+enabled = true
+
+# Slack webhook (disabled by default)
+[[notifications.webhooks]]
+name = "Slack Security Alerts"  
+url = "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+webhook_type = "slack"
+enabled = false
+
+# Custom webhook for internal systems
+[[notifications.webhooks]]
+name = "Internal Security API"
+url = "https://api.yourcompany.com/security/alerts"
+webhook_type = "generic"
+enabled = true
+
+# Security policy configuration
+# Policy: Critical Authentication Issues
+[[policies]]
+name = "Critical Authentication Issues"
+enabled = true
+
+[policies.conditions]
+title_contains = ["unauth", "authentication", "bypass", "privilege", "escalation"]
+severity = ["high", "critical"]
+
+[policies.actions]
+notify = true
+priority = "critical"
+custom_message = "🚨 Critical authentication vulnerability detected!"
+ignore = false
+
+# Policy: XSS Vulnerabilities  
+[[policies]]
+name = "XSS Vulnerabilities"
+enabled = true
+
+[policies.conditions]
+title_contains = ["xss", "cross-site scripting", "script injection"]
+severity = ["medium", "high", "critical"]
+
+[policies.actions]
+notify = true
+priority = "high"
+custom_message = "⚠️ XSS vulnerability requires attention"
+ignore = false
+
+# Policy: SQL Injection
+[[policies]]
+name = "SQL Injection"
+enabled = true
+
+[policies.conditions]
+title_contains = ["sql injection", "sqli", "sql"]
+severity = ["medium", "high", "critical"]
+
+[policies.actions]
+notify = true
+priority = "high"
+custom_message = "💉 SQL injection vulnerability detected"
+ignore = false
+
+# Policy: Development Dependencies (Low Priority)
+[[policies]]
+name = "Low Priority Development Dependencies"
+enabled = true
+
+[policies.conditions]
+severity = ["low"]
+packages = ["test*", "dev*", "*dev", "*test"]
+
+[policies.actions]
+notify = false
+priority = "low"
+ignore = true  # Ignore low-severity issues in dev dependencies
+
+# Policy: NPM Specific High Severity
+[[policies]]
+name = "NPM High Severity Issues"
+enabled = true
+
+[policies.conditions]
+severity = ["high", "critical"]
+ecosystems = ["npm"]
+
+[policies.actions]
+notify = true
+priority = "critical"
+custom_message = "🚨 High severity NPM vulnerability found!"
+ignore = false
+
+# Storage configuration
+[storage]
+database_path = "vulfy_automation.db"     # SQLite database for scan history
+retain_days = 30                          # Keep scan results for 30 days
+export_format = "json"                    # Export format for reports
+export_path = "vulfy_exports"             # Directory for exported reports 

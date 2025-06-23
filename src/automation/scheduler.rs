@@ -1,0 +1,297 @@
+use tokio_cron_scheduler::{JobScheduler, Job};
+use tracing::{info, error, warn};
+use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::str::FromStr;
+use cron::Schedule;
+use anyhow::Result;
+use crate::automation::{
+    AutomationConfig, ScheduleFrequency, ScanResult,
+    git_monitor::GitMonitor, webhooks::WebhookNotifier, policy::PolicyEngine,
+};
+
+pub struct AutomationScheduler {
+    scheduler: JobScheduler,
+    config: Arc<AutomationConfig>,
+    git_monitor: Arc<GitMonitor>,
+    webhook_notifier: Arc<WebhookNotifier>,
+    policy_engine: Arc<PolicyEngine>,
+    is_running: Arc<AtomicBool>,
+}
+
+impl AutomationScheduler {
+    pub async fn new(config: AutomationConfig, workspace_dir: PathBuf) -> Result<Self> {
+        let scheduler = JobScheduler::new().await?;
+        let git_monitor = Arc::new(GitMonitor::new(workspace_dir));
+        let webhook_notifier = Arc::new(WebhookNotifier::new());
+        let policy_engine = Arc::new(PolicyEngine::new(config.policies.clone()));
+        
+        // Initialize the workspace
+        git_monitor.init_workspace().await?;
+        
+        Ok(Self {
+            scheduler,
+            config: Arc::new(config),
+            git_monitor,
+            webhook_notifier,
+            policy_engine,
+            is_running: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
+    /// Start the scheduler with the configured schedule
+    pub async fn start(&mut self) -> Result<()> {
+        let cron_expression = self.build_cron_expression();
+        info!("Starting automation scheduler with cron expression: {}", cron_expression);
+
+        // Clone the necessary data for the job closure
+        let config = Arc::clone(&self.config);
+        let git_monitor = Arc::clone(&self.git_monitor);
+        let webhook_notifier = Arc::clone(&self.webhook_notifier);
+        let policy_engine = Arc::clone(&self.policy_engine);
+
+        let job = Job::new_async(cron_expression.as_str(), move |_uuid, _l| {
+            let config = Arc::clone(&config);
+            let git_monitor = Arc::clone(&git_monitor);
+            let webhook_notifier = Arc::clone(&webhook_notifier);
+            let policy_engine = Arc::clone(&policy_engine);
+
+            Box::pin(async move {
+                info!("Starting scheduled vulnerability scan");
+                
+                if let Err(e) = run_scheduled_scan(config, git_monitor, webhook_notifier, policy_engine).await {
+                    error!("Scheduled scan failed: {}", e);
+                } else {
+                    info!("Scheduled scan completed successfully");
+                }
+            })
+        })?;
+
+        self.scheduler.add(job).await?;
+        self.scheduler.start().await?;
+        self.is_running.store(true, Ordering::Relaxed);
+        
+        info!("Automation scheduler started successfully");
+        Ok(())
+    }
+
+    /// Stop the scheduler
+    pub async fn stop(&mut self) -> Result<()> {
+        self.scheduler.shutdown().await?;
+        self.is_running.store(false, Ordering::Relaxed);
+        info!("Automation scheduler stopped");
+        Ok(())
+    }
+
+    /// Run a manual scan (outside of the schedule)
+    pub async fn run_manual_scan(&self) -> Result<Vec<ScanResult>> {
+        info!("Starting manual vulnerability scan");
+        
+        let results = run_scheduled_scan(
+            Arc::clone(&self.config),
+            Arc::clone(&self.git_monitor),
+            Arc::clone(&self.webhook_notifier),
+            Arc::clone(&self.policy_engine),
+        ).await?;
+
+        info!("Manual scan completed successfully");
+        Ok(results)
+    }
+
+    /// Build cron expression from schedule configuration
+    fn build_cron_expression(&self) -> String {
+        let schedule = &self.config.schedule;
+        
+        match &schedule.frequency {
+            ScheduleFrequency::Hourly => {
+                // Run at the top of every hour
+                "0 0 * * * *".to_string()
+            }
+            ScheduleFrequency::Daily => {
+                if let Some(time) = &schedule.time {
+                    if let Some((hour, minute)) = parse_time(time) {
+                        format!("0 {} {} * * *", minute, hour)
+                    } else {
+                        warn!("Invalid time format '{}', using default 02:00", time);
+                        "0 0 2 * * *".to_string() // 2:00 AM daily
+                    }
+                } else {
+                    "0 0 2 * * *".to_string() // 2:00 AM daily
+                }
+            }
+            ScheduleFrequency::Weekly => {
+                if let Some(time) = &schedule.time {
+                    if let Some((hour, minute)) = parse_time(time) {
+                        format!("0 {} {} * * 1", minute, hour) // Monday
+                    } else {
+                        warn!("Invalid time format '{}', using default 02:00", time);
+                        "0 0 2 * * 1".to_string() // 2:00 AM on Monday
+                    }
+                } else {
+                    "0 0 2 * * 1".to_string() // 2:00 AM on Monday
+                }
+            }
+            ScheduleFrequency::Custom(cron) => {
+                cron.clone()
+            }
+        }
+    }
+
+    /// Check if scheduler is running
+    pub async fn is_running(&self) -> bool {
+        // For tokio-cron-scheduler, we'll just return true if we have a scheduler
+        // A more sophisticated implementation would track the running state
+        self.is_running.load(Ordering::Relaxed)
+    }
+
+    /// Get next scheduled run time
+    pub async fn next_run_time(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        // Calculate the next run time based on the cron expression
+        let cron_expression = self.build_cron_expression();
+        
+        // Use cron crate to parse and calculate next occurrence
+        if let Ok(schedule) = Schedule::from_str(&cron_expression) {
+            schedule.upcoming(chrono::Utc).next()
+        } else {
+            warn!("Invalid cron expression: {}", cron_expression);
+            None
+        }
+    }
+}
+
+/// Run a complete scan cycle for all configured repositories
+async fn run_scheduled_scan(
+    config: Arc<AutomationConfig>,
+    git_monitor: Arc<GitMonitor>,
+    webhook_notifier: Arc<WebhookNotifier>,
+    policy_engine: Arc<PolicyEngine>,
+) -> Result<Vec<ScanResult>> {
+    let mut all_results = Vec::new();
+
+    for repository in &config.repositories {
+        info!("Processing repository: {}", repository.name);
+        
+        match git_monitor.scan_repository(repository).await {
+            Ok(results) => {
+                for (result, packages) in results {
+                    // Apply policies to filter results
+                    let filtered_result = policy_engine.apply_policies(&result, &packages);
+                    
+                    // Send notifications if enabled and conditions are met
+                    if config.notifications.enabled && should_notify(&filtered_result, &config.notifications.filters) {
+                        let notification = webhook_notifier.create_notification_from_scan(&filtered_result.scan_result, None);
+                        
+                        if let Err(e) = webhook_notifier.send_notifications(&config.notifications.webhooks, &notification).await {
+                            error!("Failed to send notifications for {}/{}: {}", 
+                                   result.repository, result.branch, e);
+                        } else {
+                            info!("Sent notifications for {}/{}", result.repository, result.branch);
+                        }
+                    }
+                    
+                    all_results.push(filtered_result.scan_result);
+                }
+            }
+            Err(e) => {
+                error!("Failed to scan repository {}: {}", repository.name, e);
+                
+                // Send error notification
+                if config.notifications.enabled {
+                    let error_notification = create_error_notification(&repository.name, &e.to_string());
+                    if let Err(e) = webhook_notifier.send_notifications(&config.notifications.webhooks, &error_notification).await {
+                        error!("Failed to send error notification: {}", e);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(all_results)
+}
+
+/// Check if a notification should be sent based on filters
+fn should_notify(
+    filtered_result: &crate::automation::policy::FilteredScanResult,
+    filters: &crate::automation::NotificationFilters,
+) -> bool {
+    let result = &filtered_result.scan_result;
+    
+    // Check minimum severity
+    if let Some(min_severity) = &filters.min_severity {
+        let has_qualifying_severity = result.vulnerabilities.iter().any(|v| {
+            if let Some(severity) = &v.severity {
+                severity_level(severity) >= severity_level(min_severity)
+            } else {
+                false
+            }
+        });
+        
+        if !has_qualifying_severity {
+            return false;
+        }
+    }
+
+    // Check repository filter
+    if let Some(repos) = &filters.repositories {
+        if !repos.contains(&result.repository) {
+            return false;
+        }
+    }
+
+    // Check if there are any vulnerabilities
+    if result.vulnerabilities.is_empty() {
+        return false;
+    }
+
+    // If only_new_vulnerabilities is true, we'd need to compare with previous scan
+    // For now, we'll treat all vulnerabilities as "new" since we don't have persistent storage yet
+    if filters.only_new_vulnerabilities {
+        // Note: In a full implementation, this would compare against stored previous scan results
+        // from a database. For now, we consider all vulnerabilities as potentially new.
+        if result.vulnerabilities.is_empty() {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// Convert severity string to numeric level for comparison
+fn severity_level(severity: &str) -> u8 {
+    match severity.to_lowercase().as_str() {
+        s if s.contains("critical") => 4,
+        s if s.contains("high") => 3,
+        s if s.contains("medium") => 2,
+        s if s.contains("low") => 1,
+        _ => 0,
+    }
+}
+
+/// Parse time string in format "HH:MM" to (hour, minute)
+fn parse_time(time_str: &str) -> Option<(u8, u8)> {
+    let parts: Vec<&str> = time_str.split(':').collect();
+    if parts.len() == 2 {
+        if let (Ok(hour), Ok(minute)) = (parts[0].parse::<u8>(), parts[1].parse::<u8>()) {
+            if hour < 24 && minute < 60 {
+                return Some((hour, minute));
+            }
+        }
+    }
+    None
+}
+
+/// Create error notification message
+fn create_error_notification(repository_name: &str, error_message: &str) -> crate::automation::NotificationMessage {
+    crate::automation::NotificationMessage {
+        title: "Repository Scan Failed".to_string(),
+        description: format!("Failed to scan repository `{}`: {}", repository_name, error_message),
+        severity: "high".to_string(),
+        repository: repository_name.to_string(),
+        branch: "unknown".to_string(),
+        vulnerability_count: 0,
+        new_vulnerabilities: 0,
+        scan_url: None,
+        timestamp: chrono::Utc::now(),
+    }
+} 
