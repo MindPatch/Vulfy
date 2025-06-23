@@ -25,7 +25,7 @@ Vulfy is a lightning-fast vulnerability scanner that checks your project depende
 - 🌍 **Multi-Ecosystem** - npm, Python, Rust, Java, Go, Ruby, C/C++, PHP, .NET - we got 'em all  
 - 📊 **Multiple Outputs** - Pretty tables, JSON, CSV, SARIF, whatever floats your boat  
 - 🎯 **OSV.dev Integration** - Real vulnerability data, not snake oil  
-- **Zero Config** - Point, shoot, done  urce Vulnerabilities database
+- ⚡ **Zero Config** - Point, shoot, done  
 - 🔄 **CI/CD Ready** - Perfect for automated security pipelines
 - 🎨 **Beautiful Reports** - Color-coded severity levels and clean formatting
 
@@ -58,7 +58,6 @@ cargo install vulfy
 ```bash
 # Scan current directory with beautiful table output
 vulfy scan packages
->>>>>>> master
 
 # Scan specific directory
 vulfy scan packages --path /path/to/project
