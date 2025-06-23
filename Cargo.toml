@@ -56,6 +56,9 @@ git2 = "0.18"
 # Job scheduling
 tokio-cron-scheduler = "0.10"
 
+# Cron expression parsing
+cron = "0.12"
+
 # Regular expressions for policy matching
 regex = "1.10"
 

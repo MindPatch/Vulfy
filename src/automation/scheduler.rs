@@ -2,6 +2,9 @@ use tokio_cron_scheduler::{JobScheduler, Job};
 use tracing::{info, error, warn};
 use std::sync::Arc;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::str::FromStr;
+use cron::Schedule;
 use anyhow::Result;
 use crate::automation::{
     AutomationConfig, ScheduleFrequency, ScanResult,
@@ -14,6 +17,7 @@ pub struct AutomationScheduler {
     git_monitor: Arc<GitMonitor>,
     webhook_notifier: Arc<WebhookNotifier>,
     policy_engine: Arc<PolicyEngine>,
+    is_running: Arc<AtomicBool>,
 }
 
 impl AutomationScheduler {
@@ -32,6 +36,7 @@ impl AutomationScheduler {
             git_monitor,
             webhook_notifier,
             policy_engine,
+            is_running: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -65,6 +70,7 @@ impl AutomationScheduler {
 
         self.scheduler.add(job).await?;
         self.scheduler.start().await?;
+        self.is_running.store(true, Ordering::Relaxed);
         
         info!("Automation scheduler started successfully");
         Ok(())
@@ -73,6 +79,7 @@ impl AutomationScheduler {
     /// Stop the scheduler
     pub async fn stop(&mut self) -> Result<()> {
         self.scheduler.shutdown().await?;
+        self.is_running.store(false, Ordering::Relaxed);
         info!("Automation scheduler stopped");
         Ok(())
     }
@@ -135,14 +142,21 @@ impl AutomationScheduler {
     pub async fn is_running(&self) -> bool {
         // For tokio-cron-scheduler, we'll just return true if we have a scheduler
         // A more sophisticated implementation would track the running state
-        true
+        self.is_running.load(Ordering::Relaxed)
     }
 
     /// Get next scheduled run time
     pub async fn next_run_time(&self) -> Option<chrono::DateTime<chrono::Utc>> {
-        // For now, return None as the exact implementation depends on the scheduler version
-        // In a real implementation, this would query the scheduler for the next run time
-        None
+        // Calculate the next run time based on the cron expression
+        let cron_expression = self.build_cron_expression();
+        
+        // Use cron crate to parse and calculate next occurrence
+        if let Ok(schedule) = Schedule::from_str(&cron_expression) {
+            schedule.upcoming(chrono::Utc).next()
+        } else {
+            warn!("Invalid cron expression: {}", cron_expression);
+            None
+        }
     }
 }
 
@@ -160,9 +174,8 @@ async fn run_scheduled_scan(
         
         match git_monitor.scan_repository(repository).await {
             Ok(results) => {
-                for result in results {
+                for (result, packages) in results {
                     // Apply policies to filter results
-                    let packages = vec![]; // TODO: Get packages from scan context
                     let filtered_result = policy_engine.apply_policies(&result, &packages);
                     
                     // Send notifications if enabled and conditions are met
@@ -232,9 +245,13 @@ fn should_notify(
     }
 
     // If only_new_vulnerabilities is true, we'd need to compare with previous scan
-    // For now, we'll assume all vulnerabilities are "new" in this context
+    // For now, we'll treat all vulnerabilities as "new" since we don't have persistent storage yet
     if filters.only_new_vulnerabilities {
-        // TODO: Implement comparison with stored previous scan results
+        // Note: In a full implementation, this would compare against stored previous scan results
+        // from a database. For now, we consider all vulnerabilities as potentially new.
+        if result.vulnerabilities.is_empty() {
+            return false;
+        }
     }
 
     true

@@ -32,7 +32,7 @@ impl GitMonitor {
     }
 
     /// Clone or update a repository and scan it
-    pub async fn scan_repository(&self, repo_config: &Repository) -> Result<Vec<ScanResult>> {
+    pub async fn scan_repository(&self, repo_config: &Repository) -> Result<Vec<(ScanResult, Vec<crate::types::Package>)>> {
         let repo_dir = self.get_repo_directory(&repo_config.name);
         
         // Ensure the repository is up to date
@@ -50,8 +50,8 @@ impl GitMonitor {
             self.checkout_branch(&repo_dir, &branch)?;
             
             // Perform the scan
-            let scan_result = self.perform_scan(repo_config, &repo_dir, &branch).await?;
-            results.push(scan_result);
+            let (scan_result, packages) = self.perform_scan(repo_config, &repo_dir, &branch).await?;
+            results.push((scan_result, packages));
         }
         
         Ok(results)
@@ -188,7 +188,7 @@ impl GitMonitor {
     }
 
     /// Perform vulnerability scan on the repository
-    async fn perform_scan(&self, repo_config: &Repository, repo_dir: &PathBuf, branch: &str) -> Result<ScanResult> {
+    async fn perform_scan(&self, repo_config: &Repository, repo_dir: &PathBuf, branch: &str) -> Result<(ScanResult, Vec<crate::types::Package>)> {
         let start_time = std::time::Instant::now();
         
         // Create scan configuration
@@ -209,7 +209,7 @@ impl GitMonitor {
         
         // Get vulnerabilities for all packages
         let matcher = crate::matcher::VulnerabilityMatcher::new();
-        let scan_result = matcher.check_vulnerabilities(packages).await?;
+        let scan_result = matcher.check_vulnerabilities(packages.clone()).await?;
         
         // Extract vulnerabilities from scan result
         let vulnerabilities: Vec<crate::types::Vulnerability> = scan_result.packages
@@ -234,7 +234,7 @@ impl GitMonitor {
         info!("Scan completed for {}/{}: {} packages, {} vulnerabilities, took {}ms", 
                repo_config.name, branch, total_packages, automation_scan_result.vulnerabilities.len(), automation_scan_result.scan_duration_ms);
         
-        Ok(automation_scan_result)
+        Ok((automation_scan_result, packages))
     }
 }
 
