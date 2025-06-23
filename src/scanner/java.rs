@@ -30,14 +30,12 @@ impl PackageParser for JavaParser {
 impl JavaParser {
     async fn parse_pom_xml(&self, content: &str, file_path: &Path) -> VulfyResult<Vec<Package>> {
         let mut reader = Reader::from_str(content);
-        reader.trim_text(true);
-
-        let mut packages = Vec::new();
         let mut buf = Vec::new();
-        
+        let mut packages = Vec::new();
         let mut in_dependencies = false;
-        let mut in_dependency = false;
-        let mut current_dependency = Dependency::default();
+        let mut current_group_id = String::new();
+        let mut current_artifact_id = String::new();
+        let mut current_version = String::new();
 
         loop {
             match reader.read_event_into(&mut buf) {
@@ -45,8 +43,9 @@ impl JavaParser {
                     match e.name().as_ref() {
                         b"dependencies" => in_dependencies = true,
                         b"dependency" if in_dependencies => {
-                            in_dependency = true;
-                            current_dependency = Dependency::default();
+                            current_group_id = String::new();
+                            current_artifact_id = String::new();
+                            current_version = String::new();
                         }
                         _ => {}
                     }
@@ -54,12 +53,11 @@ impl JavaParser {
                 Ok(Event::End(ref e)) => {
                     match e.name().as_ref() {
                         b"dependencies" => in_dependencies = false,
-                        b"dependency" if in_dependency => {
-                            in_dependency = false;
-                            if current_dependency.is_valid() {
+                        b"dependency" if in_dependencies => {
+                            if !current_group_id.is_empty() && !current_artifact_id.is_empty() && !current_version.is_empty() {
                                 packages.push(Package {
-                                    name: format!("{}:{}", current_dependency.group_id, current_dependency.artifact_id),
-                                    version: current_dependency.version.clone(),
+                                    name: format!("{}:{}", current_group_id, current_artifact_id),
+                                    version: current_version.clone(),
                                     ecosystem: Ecosystem::Maven,
                                     source_file: file_path.to_path_buf(),
                                 });
@@ -68,27 +66,27 @@ impl JavaParser {
                         _ => {}
                     }
                 }
-                Ok(Event::Text(e)) if in_dependency => {
+                Ok(Event::Text(e)) if in_dependencies => {
                     let _text = e.unescape().unwrap().into_owned();
                     // This is a simplified approach - in reality, we'd need to track which element we're in
                     // For now, we'll use a heuristic based on position
                 }
-                Ok(Event::Empty(ref e)) if in_dependency => {
+                Ok(Event::Empty(ref e)) if in_dependencies => {
                     // Handle self-closing tags within dependency
                     match e.name().as_ref() {
                         b"groupId" => {
                             if let Some(value) = self.extract_text_content(&mut reader, &mut buf)? {
-                                current_dependency.group_id = value;
+                                current_group_id = value;
                             }
                         }
                         b"artifactId" => {
                             if let Some(value) = self.extract_text_content(&mut reader, &mut buf)? {
-                                current_dependency.artifact_id = value;
+                                current_artifact_id = value;
                             }
                         }
                         b"version" => {
                             if let Some(value) = self.extract_text_content(&mut reader, &mut buf)? {
-                                current_dependency.version = value;
+                                current_version = value;
                             }
                         }
                         _ => {}
@@ -179,18 +177,5 @@ impl JavaParser {
         }
         
         String::new()
-    }
-}
-
-#[derive(Default)]
-struct Dependency {
-    group_id: String,
-    artifact_id: String,
-    version: String,
-}
-
-impl Dependency {
-    fn is_valid(&self) -> bool {
-        !self.group_id.is_empty() && !self.artifact_id.is_empty() && !self.version.is_empty()
     }
 } 

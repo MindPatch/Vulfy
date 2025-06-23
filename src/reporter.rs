@@ -4,7 +4,10 @@ use serde_json;
 use std::collections::HashMap;
 
 use crate::error::{VulfyError, VulfyResult};
-use crate::types::{ScanConfig, ScanResult, ReportFormat, Ecosystem};
+use crate::types::{ScanConfig, ScanResult, ReportFormat, Ecosystem, 
+                  SarifReport, SarifRun, SarifTool, SarifDriver, SarifRule, SarifResult,
+                  SarifMessage, SarifLocation, SarifPhysicalLocation, SarifArtifactLocation,
+                  SarifRuleProperties, SarifResultProperties, SarifRegion, SarifArtifact};
 
 pub struct Reporter;
 
@@ -19,6 +22,7 @@ impl Reporter {
             ReportFormat::Json => self.generate_json_report(scan_result, config).await,
             ReportFormat::Csv => self.generate_csv_report(scan_result, config).await,
             ReportFormat::Summary => self.generate_summary_report(scan_result, config).await,
+            ReportFormat::Sarif => self.generate_sarif_report(scan_result, config).await,
         }
     }
 
@@ -84,6 +88,22 @@ impl Reporter {
             std::io::stdout().flush().map_err(|e| VulfyError::Io(e))?;
         }
         
+        Ok(())
+    }
+
+    async fn generate_sarif_report(&self, scan_result: &ScanResult, config: &ScanConfig) -> VulfyResult<()> {
+        let sarif_report = self.format_sarif_report(scan_result).await?;
+
+        if let Some(ref output_file) = config.output_file {
+            self.write_to_file(&sarif_report, output_file).await?;
+            if !config.quiet {
+                info!("SARIF report written to {}", output_file.display());
+            }
+        } else {
+            print!("{}", sarif_report);
+            std::io::stdout().flush().map_err(|e| VulfyError::Io(e))?;
+        }
+
         Ok(())
     }
 
@@ -300,6 +320,127 @@ impl Reporter {
         Ok(output)
     }
 
+    async fn format_sarif_report(&self, scan_result: &ScanResult) -> VulfyResult<String> {
+        // Collect all unique rules (vulnerability types)
+        let mut rules = HashMap::new();
+        let mut results = Vec::new();
+        let mut artifacts = HashMap::new();
+
+        for package_vuln in &scan_result.packages {
+            // Skip vulnerabilities with no meaningful summary
+            let valid_vulnerabilities: Vec<_> = package_vuln.vulnerabilities.iter()
+                .filter(|v| !v.summary.trim().is_empty() && 
+                           v.summary.trim() != "No summary available" &&
+                           v.summary.trim() != "No description available")
+                .collect();
+
+            for vuln in valid_vulnerabilities {
+                let cve_id = self.extract_cve_from_references(&vuln.references)
+                    .unwrap_or_else(|| vuln.id.clone());
+                
+                // Create rule if not exists
+                if !rules.contains_key(&vuln.id) {
+                    let (severity_level, _) = self.parse_severity(vuln.severity.as_deref());
+                    let security_severity = self.map_severity_to_sarif_score(&severity_level);
+                    
+                    let rule = SarifRule {
+                        id: vuln.id.clone(),
+                        name: format!("Vulnerability: {}", vuln.id),
+                        short_description: Some(SarifMessage {
+                            text: vuln.summary.clone(),
+                        }),
+                        full_description: Some(SarifMessage {
+                            text: format!("Vulnerability {} found in package dependency", vuln.id),
+                        }),
+                        help_uri: vuln.references.first().cloned(),
+                        properties: Some(SarifRuleProperties {
+                            security_severity: Some(security_severity),
+                            tags: Some(vec!["vulnerability".to_string(), "dependency".to_string()]),
+                        }),
+                    };
+                    rules.insert(vuln.id.clone(), rule);
+                }
+
+                // Create artifact entry for the source file
+                let source_path = package_vuln.package.source_file.to_string_lossy().to_string();
+                if !artifacts.contains_key(&source_path) {
+                    artifacts.insert(source_path.clone(), SarifArtifact {
+                        location: SarifArtifactLocation {
+                            uri: source_path.clone(),
+                            description: Some(SarifMessage {
+                                text: format!("Package dependency file for {}", package_vuln.package.ecosystem.as_str()),
+                            }),
+                        },
+                        description: Some(SarifMessage {
+                            text: format!("Dependency file containing {} packages", 
+                                package_vuln.package.ecosystem.as_str()),
+                        }),
+                    });
+                }
+
+                // Create SARIF result
+                let (severity_level, _) = self.parse_severity(vuln.severity.as_deref());
+                let sarif_level = self.map_severity_to_sarif_level(&severity_level);
+                
+                let result = SarifResult {
+                    rule_id: vuln.id.clone(),
+                    level: sarif_level,
+                    message: SarifMessage {
+                        text: format!("Vulnerability {} found in {}@{}: {}", 
+                            cve_id, package_vuln.package.name, package_vuln.package.version, vuln.summary),
+                    },
+                    locations: vec![SarifLocation {
+                        physical_location: SarifPhysicalLocation {
+                            artifact_location: SarifArtifactLocation {
+                                uri: source_path.clone(),
+                                description: None,
+                            },
+                            region: Some(SarifRegion {
+                                start_line: 1,
+                                start_column: Some(1),
+                            }),
+                        },
+                    }],
+                    fingerprints: Some({
+                        let mut fp = HashMap::new();
+                        fp.insert("vuln_id".to_string(), vuln.id.clone());
+                        fp.insert("package".to_string(), format!("{}@{}", 
+                            package_vuln.package.name, package_vuln.package.version));
+                        fp
+                    }),
+                    properties: Some(SarifResultProperties {
+                        package_name: Some(package_vuln.package.name.clone()),
+                        package_version: Some(package_vuln.package.version.clone()),
+                        ecosystem: Some(package_vuln.package.ecosystem.as_str().to_string()),
+                        cve_id: Some(cve_id),
+                        fixed_version: vuln.fixed_version.clone(),
+                    }),
+                };
+                results.push(result);
+            }
+        }
+
+        let sarif_report = SarifReport {
+            schema: "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0.json".to_string(),
+            version: "2.1.0".to_string(),
+            runs: vec![SarifRun {
+                tool: SarifTool {
+                    driver: SarifDriver {
+                        name: "Vulfy".to_string(),
+                        version: env!("CARGO_PKG_VERSION").to_string(),
+                        information_uri: Some("https://github.com/vulfy/vulfy".to_string()),
+                        rules: rules.into_values().collect(),
+                    },
+                },
+                results,
+                artifacts: Some(artifacts.into_values().collect()),
+            }],
+        };
+
+        serde_json::to_string_pretty(&sarif_report)
+            .map_err(|e| VulfyError::Json(e))
+    }
+
     async fn write_to_file(&self, content: &str, file_path: &std::path::Path) -> VulfyResult<()> {
         // Create parent directories if they don't exist
         if let Some(parent) = file_path.parent() {
@@ -413,7 +554,25 @@ impl Reporter {
             Ecosystem::Cargo => "🦀",
             Ecosystem::Maven => "☕",
             Ecosystem::Go => "🐹",
-            Ecosystem::RubyGems => "💎",
+            Ecosystem::RubyGems => "��",
+        }
+    }
+
+    fn map_severity_to_sarif_score(&self, severity: &str) -> String {
+        match severity {
+            "High" => "High".to_string(),
+            "Medium" => "Medium".to_string(),
+            "Low" => "Low".to_string(),
+            _ => "Unknown".to_string(),
+        }
+    }
+
+    fn map_severity_to_sarif_level(&self, severity: &str) -> String {
+        match severity {
+            "High" => "error".to_string(),
+            "Medium" => "warning".to_string(),
+            "Low" => "note".to_string(),
+            _ => "none".to_string(),
         }
     }
 }
