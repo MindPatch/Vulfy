@@ -1,10 +1,8 @@
 use serde_json::{json, Value};
 use reqwest::Client;
-use tracing::{info, warn, error};
+use tracing::{info, error};
 use anyhow::Result;
-use crate::automation::{Webhook, WebhookType, NotificationMessage, ScanResult};
-use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use super::{ScanResult, NotificationMessage, Webhook, WebhookType};
 
 pub struct WebhookNotifier {
     client: Client,

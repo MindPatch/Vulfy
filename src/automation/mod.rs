@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use regex::Regex;
 use crate::types::{Ecosystem, Vulnerability};
+use anyhow::Result;
 
 pub mod scheduler;
 pub mod git_monitor;
