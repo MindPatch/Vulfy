@@ -158,9 +158,3 @@ No complicated contributor agreements or corporate BS. Just make it better.
 ## The Fine Print
 
 MIT License - do whatever you want with it.
-
-Created by **Khaled Nassar** (knassar702@gmail.com) because secure software shouldn't be this hard.
-
----
-
-*"Security tools should be fast, useful, and not make you want to throw your laptop out the window."* - The Vulfy Philosophy 
