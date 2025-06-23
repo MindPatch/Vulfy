@@ -597,9 +597,27 @@ async fn execute_automation_status(config_path: PathBuf) -> VulfyResult<()> {
         }
     }
 
-    // TODO: Check if scheduler is actually running
+    // Check scheduler status by trying to create a scheduler instance
     println!("\n🤖 Scheduler Status:");
-    println!("   ⚠️ Status checking not fully implemented yet");
+    
+    // Try to create a scheduler to check configuration validity
+    let workspace = PathBuf::from("vulfy-workspace");
+    match AutomationScheduler::new(config.clone(), workspace).await {
+        Ok(scheduler) => {
+            // Show next run time if available
+            if let Some(next_run) = scheduler.next_run_time().await {
+                println!("   📅 Next scheduled run: {}", next_run.format("%Y-%m-%d %H:%M:%S UTC"));
+            } else {
+                println!("   ⚠️  Unable to calculate next run time");
+            }
+            
+            println!("   ✅ Scheduler configuration is valid");
+            println!("   ℹ️  Use 'vulfy automation start' to begin monitoring");
+        }
+        Err(e) => {
+            println!("   ❌ Scheduler configuration error: {}", e);
+        }
+    }
 
     Ok(())
 }
