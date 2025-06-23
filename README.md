@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="logo.png" alt="Vulfy Logo" width="200"/>
+  <img src="assets/main_logo.png" alt="Vulfy Logo" width="200"/>
 </div>
 
 # 🐺 Vulfy
