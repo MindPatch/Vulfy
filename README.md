@@ -1,41 +1,86 @@
 <div align="center">
   <img src="assets/main_logo.png" alt="Vulfy Logo" width="200"/>
+  
+  # 🐺 Vulfy
+  
+  **Fast, cross-language vulnerability scanner that doesn't mess around.**
+  
+  [![Release](https://img.shields.io/github/v/release/mindPatch/vulfy)](https://github.com/mindPatch/vulfy/releases)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
+  [![CI](https://img.shields.io/github/actions/workflow/status/mindPatch/vulfy/ci.yml)](https://github.com/mindPatch/vulfy/actions)
 </div>
-
-# 🐺 Vulfy
-
-**Fast, cross-language vulnerability scanner that doesn't mess around.**
-
-*Current Version: v0.1.0*
 
 ---
 
-## What's This Thing Do?
+## 🚀 What is Vulfy?
 
-Vulfy sniffs out vulnerable packages in your projects faster than you can say "supply chain attack." It's like having a security-obsessed teammate who never sleeps and knows every CVE by heart.
+Vulfy is a lightning-fast vulnerability scanner that checks your project dependencies for known security issues across multiple programming languages. Built with Rust for maximum performance, it integrates with the OSV.dev database to provide accurate, up-to-date vulnerability information.
 
-Born from frustration with slow, bloated security tools that take forever to tell you what you already suspect: *yes, your dependencies probably have issues.*
+**Why Vulfy?** Born from frustration with slow, bloated security tools that take forever to scan projects. Vulfy gets straight to the point: find vulnerabilities fast, report them clearly, and get out of your way.
 
-## The Goods
+## ✨ Features
 
-🔥 **Lightning Fast** - Async Rust goes brrrr  
-🌍 **Multi-Ecosystem** - npm, Python, Rust, Java, Go, Ruby, C/C++, PHP, .NET - we got 'em all  
-📊 **Multiple Outputs** - Pretty tables, JSON, CSV, SARIF, whatever floats your boat  
-🎯 **OSV.dev Integration** - Real vulnerability data, not snake oil  
-⚡ **Zero Config** - Point, shoot, done  
+- 🔥 **Lightning Fast** - Async Rust goes brrrr  
+- 🌍 **Multi-Ecosystem** - npm, Python, Rust, Java, Go, Ruby, C/C++, PHP, .NET - we got 'em all  
+- 📊 **Multiple Outputs** - Pretty tables, JSON, CSV, SARIF, whatever floats your boat  
+- 🎯 **OSV.dev Integration** - Real vulnerability data, not snake oil  
+- **Zero Config** - Point, shoot, done  urce Vulnerabilities database
+- 🔄 **CI/CD Ready** - Perfect for automated security pipelines
+- 🎨 **Beautiful Reports** - Color-coded severity levels and clean formatting
 
-## Quick Start
+## 📦 Installation
+
+### Pre-built Binaries
+```bash
+# Download the latest release for your platform
+curl -LO https://github.com/mindPatch/vulfy/releases/latest/download/vulfy-linux-x86_64.tar.gz
+tar -xzf vulfy-linux-x86_64.tar.gz
+sudo mv vulfy /usr/local/bin/
+```
+
+### From Source
+```bash
+git clone https://github.com/mindPatch/vulfy.git
+cd vulfy
+cargo build --release
+sudo cp target/release/vulfy /usr/local/bin/
+```
+
+### Using Cargo
+```bash
+cargo install vulfy
+```
+
+## 🏃‍♂️ Quick Start
+
+### Basic Scan
+```bash
+# Scan current directory with beautiful table output
+vulfy scan packages
+>>>>>>> master
+
+# Scan specific directory
+vulfy scan packages --path /path/to/project
+```
+
+### CI/CD Integration
+```bash
+# JSON output for programmatic use
+vulfy scan packages --format json --output security-report.json
+
+# SARIF format for GitHub Security tab
+vulfy scan packages --format sarif --output vulfy.sarif
+
+# Exit with error code if high-severity vulnerabilities found
+vulfy scan packages --high-only --quiet
+```
+
+## 🛠️ Usage
 
 ```bash
-# Clone and build
-$ git clone https://github.com/mindPatch/vulfy.git
-$ cd vulfy
-$ cargo build --release
-
-# Scan your project (the pretty way)
-$ vulfy
-
 vulfy scan packages [OPTIONS]
+
 OPTIONS:
     -p, --path <PATH>              Where to scan [default: current directory]
     -f, --format <FORMAT>          Output format: table, json, csv, summary, sarif
@@ -47,7 +92,7 @@ OPTIONS:
     --no-dev-deps                  Skip development dependencies
 ```
 
-## What Gets Scanned
+## 🎯 Supported Ecosystems
 
 | Ecosystem | Files We Hunt |
 |-----------|---------------|
@@ -60,13 +105,9 @@ OPTIONS:
 | ⚙️ **C/C++** | `vcpkg.json`, `CMakeLists.txt`, `conanfile.txt`, `conanfile.py` |
 | 🐘 **PHP** | `composer.json`, `composer.lock`, `phpunit.xml`, `phpunit.xml.dist` |
 | 🔷 **.NET** | `*.csproj`, `*.vbproj`, `*.fsproj`, `packages.config`, `Directory.Build.props`, `Directory.Packages.props`, `*.nuspec` |
+## 📋 Example Output
 
-## Real Talk Examples
-
-### The Beautiful Default (Table Format)
-```bash
-vulfy scan packages
-```
+### Table Format (Default)
 ```
 🔍 Scanning for package files...
 📦 Found 6 package files across 4 ecosystems
@@ -81,70 +122,166 @@ vulfy scan packages
 └─────────────────────────────────────────┴──────────────┴──────────┴─────────────────┴──────┘
 
 📊 SCAN SUMMARY
-• Total packages: 42
+• Total packages scanned: 42
 • Vulnerable packages: 8
 • Total vulnerabilities: 12
-• High severity: 4 🔥
-• Medium severity: 6 🟡
-• Low severity: 2 🟢
+• 🔥 High severity: 4
+• 🟡 Medium severity: 6
+• 🟢 Low severity: 2
 ```
 
-### For Your CI/CD Pipeline
+### JSON Format
+```json
+{
+  "scan_id": "abc123",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "scanned_path": "/path/to/project",
+  "summary": {
+    "total_packages": 42,
+    "vulnerable_packages": 8,
+    "total_vulnerabilities": 12,
+    "severity_counts": {
+      "critical": 0,
+      "high": 4,
+      "medium": 6,
+      "low": 2
+    }
+  },
+  "vulnerabilities": [
+    {
+      "id": "CVE-2021-123",
+      "title": "Remote Code Execution in lodash",
+      "severity": "HIGH",
+      "package": "lodash",
+      "version": "4.17.0",
+      "ecosystem": "npm",
+      "published": "2021-05-15T00:00:00Z",
+      "modified": "2021-05-20T00:00:00Z",
+      "aliases": ["GHSA-abc-123"],
+      "summary": "A vulnerability in lodash allows remote code execution...",
+      "details": "...",
+      "affected_versions": ["<4.17.21"],
+      "references": [
+        {
+          "type": "ADVISORY",
+          "url": "https://github.com/advisories/GHSA-abc-123"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## 🔧 Configuration
+
+Create a `.vulfy.toml` file in your project root for custom settings:
+
+```toml
+[scan]
+# Default ecosystems to scan
+ecosystems = ["npm", "pypi", "cargo"]
+
+# Severity threshold (vulnerabilities below this level are ignored)
+min_severity = "medium"
+
+# Skip development dependencies
+skip_dev_deps = true
+
+# Custom ignore patterns
+ignore_paths = [
+    "node_modules",
+    "vendor",
+    ".git"
+]
+
+[output]
+# Default output format
+format = "table"
+
+# Color output (auto, always, never)
+color = "auto"
+
+[api]
+# OSV.dev API settings
+timeout = 30
+max_concurrent = 10
+retry_attempts = 3
+```
+
+## 🚀 Roadmap
+
+### Coming Soon
+- 🔧 **Fix Mode** - Automatically update vulnerable packages to safe versions
+- 📈 **Trend Analysis** - Track vulnerability trends over time
+- 🎯 **Custom Policies** - Define organization-specific security rules
+- ⚡ **Watch Mode** - Real-time monitoring for new vulnerabilities
+
+### Future Plans
+- 🔗 **Additional Ecosystems** - C/C++ (vcpkg), PHP (Composer), .NET (NuGet)
+- 🔔 **Notifications** - Slack, Discord, and email alerts
+- 🐳 **Container Scanning** - Docker image vulnerability detection
+- 📡 **Git Integration** - Continuous repository monitoring
+
+Have feature requests? [Open an issue](https://github.com/mindPatch/vulfy/issues/new) and let's discuss!
+
+## 🏗️ Architecture
+
+Vulfy is built with performance and reliability in mind:
+
+- **Async-First Design** - Built on Tokio for maximum concurrency
+- **Strategy Pattern** - Pluggable parsers for different package managers
+- **Rate Limiting** - Respectful API usage with configurable limits
+- **Memory Efficient** - Streaming parsers for large projects
+- **Error Resilient** - Graceful handling of network and parsing errors
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+### Development Setup
 ```bash
-vulfy scan packages --format json --quiet > security-report.json
+git clone https://github.com/your-username/vulfy.git
+cd vulfy
+cargo build
+cargo test
 ```
 
-### Integration with GitHub Security
-```bash
-vulfy scan packages --format sarif -o vulfy.sarif
-# Upload vulfy.sarif to GitHub Security tab
-```
+### Guidelines
+- Follow Rust best practices and run `cargo clippy`
+- Add tests for new features
+- Update documentation for user-facing changes
+- Keep commit messages clear and descriptive
 
+## 🐛 Bug Reports & Feature Requests
 
-## What's Coming Next
+Found a bug or have a feature idea? We'd love to hear from you!
 
-🚀 **Future Features (because we're just getting started):**
+- **Bug Reports**: [Create an issue](https://github.com/mindPatch/vulfy/issues/new?template=bug_report.md)
+- **Feature Requests**: [Start a discussion](https://github.com/mindPatch/vulfy/discussions/new?category=ideas)
+- **Security Issues**: Email security@vulfy.dev
 
-- **🔧 Fix Mode** - Auto-update vulnerable packages to safe versions
-- **📈 Trend Analysis** - Track vulnerability trends over time
-- **🎯 Custom Rules** - Define your own vulnerability policies
-- **⚡ Watch Mode** - Monitor projects in real-time for new vulnerabilities
-- **🔗 More Ecosystems** - C/C++ (vcpkg), PHP (composer), .NET (NuGet)
-- **🌐 Web Dashboard** - Beautiful web interface for teams
-- **🔔 Notifications** - Slack/Discord/email alerts for new vulnerabilities
-- **📋 Policy Engine** - Fail builds based on severity thresholds
-- **🐳 Docker Image Scans** - Deep dive into container layers and installed packages
-- **🗂️ File System Scanning** - Scan entire systems for vulnerable packages
-- **📡 Git Repository Monitoring** - Continuous scanning of repos for new vulnerabilities
-- **💽 VirtualBox Disk Analysis** - Mount and scan VM disks for security issues
+## 📄 License
 
-Got ideas? Drop an issue and let's make it happen!
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Technical Stuff
+## 🙏 Acknowledgments
 
-**Built With:**
-- Rust 2021 (because performance matters)
-- Tokio (async all the things)
-- OSV.dev API (real vulnerability data)
-- A healthy disrespect for slow tools
+- [OSV.dev](https://osv.dev/) for providing comprehensive vulnerability data
+- The Rust community for amazing crates and tooling
+- All our contributors who make Vulfy better
 
-**Architecture:**
-- Strategy pattern for different parsers
-- Concurrent vulnerability checking (10 requests at once, we're not animals)
-- Memory efficient streaming for large projects
-- SARIF 2.1.0 compliant output
+---
 
-## Contributing
-
-Found a bug? Want a feature? Know a language we should support?
-
-1. Fork it
-2. Fix it
-3. PR it
-4. 🎉
-
-No complicated contributor agreements or corporate BS. Just make it better.
-
-## The Fine Print
-
-MIT License - do whatever you want with it.
+<div align="center">
+  <strong>Made with ❤️ and ☕ by mindpatch</strong>
+  <br>
+  <a href="https://github.com/mindPatch/vulfy">⭐ Star us on GitHub</a> |
+  <a href="https://github.com/mindPatch/vulfy/issues">🐛 Report Issues</a> |
+  <a href="https://github.com/mindPatch/vulfy/discussions">💬 Discussions</a>
+</div>
