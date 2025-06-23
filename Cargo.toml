@@ -1,0 +1,52 @@
+[package]
+name = "vulfy"
+version = "0.1.0"
+edition = "2021"
+description = "Cross-language CLI-based package version scanner for detecting known vulnerabilities"
+license = "MIT"
+
+[[bin]]
+name = "vulfy"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# HTTP client for OSV.dev API
+reqwest = { version = "0.11", features = ["json"] }
+
+# JSON serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# CLI framework
+clap = { version = "4.4", features = ["derive"] }
+
+# Structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# File system operations
+walkdir = "2.4"
+glob = "0.3"
+
+# XML parsing for pom.xml
+quick-xml = { version = "0.31", features = ["serialize"] }
+
+# TOML parsing for Cargo.lock
+toml = "0.8"
+
+# Async utilities
+futures = "0.3"
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.8"
