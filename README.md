@@ -47,12 +47,12 @@ OPTIONS:
 
 | Ecosystem | Files We Hunt |
 |-----------|---------------|
-| 📦 **npm** | `package-lock.json`, `yarn.lock`, `package.json` |
-| 🐍 **Python** | `requirements.txt`, `Pipfile.lock`, `poetry.lock` |
+| 📦 **npm** | `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `package.json`, `pnpm-lock.yaml` |
+| 🐍 **Python** | `requirements.txt`, `Pipfile`, `Pipfile.lock`, `poetry.lock`, `pyproject.toml`, `setup.py`, `setup.cfg`, `environment.yml` (conda) |
 | 🦀 **Rust** | `Cargo.lock`, `Cargo.toml` |
-| ☕ **Java** | `pom.xml` |
-| 🐹 **Go** | `go.mod`, `go.sum` |
-| 💎 **Ruby** | `Gemfile.lock` |
+| ☕ **Java** | `pom.xml`, `build.gradle`, `build.gradle.kts`, `ivy.xml` |
+| 🐹 **Go** | `go.mod`, `go.sum`, `go.work`, `go.work.sum`, `vendor/modules.txt` |
+| 💎 **Ruby** | `Gemfile.lock`, `Gemfile`, `gems.rb`, `*.gemspec` |
 
 ## Real Talk Examples
 
