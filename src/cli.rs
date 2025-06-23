@@ -48,7 +48,7 @@ pub enum ScanType {
         #[arg(long)]
         no_recursive: bool,
 
-        /// Only scan specific ecosystems (comma-separated: npm,pypi,cargo,maven,go,rubygems)
+        /// Only scan specific ecosystems (comma-separated: npm,pypi,cargo,maven,go,rubygems,vcpkg,composer,nuget)
         #[arg(short, long, value_delimiter = ',')]
         ecosystems: Option<Vec<String>>,
 
@@ -174,6 +174,9 @@ fn parse_ecosystems(ecosystem_strs: Vec<String>) -> VulfyResult<Vec<Ecosystem>> 
             "maven" => Ecosystem::Maven,
             "go" => Ecosystem::Go,
             "rubygems" => Ecosystem::RubyGems,
+            "vcpkg" => Ecosystem::Vcpkg,
+            "composer" | "packagist" => Ecosystem::Composer,
+            "nuget" => Ecosystem::NuGet,
             _ => {
                 return Err(VulfyError::Config {
                     message: format!("Unsupported ecosystem: {}", eco_str),

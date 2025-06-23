@@ -19,7 +19,7 @@ Born from frustration with slow, bloated security tools that take forever to tel
 ## The Goods
 
 🔥 **Lightning Fast** - Async Rust goes brrrr  
-🌍 **Multi-Ecosystem** - npm, pip, cargo, maven, go, ruby - we got 'em all  
+🌍 **Multi-Ecosystem** - npm, Python, Rust, Java, Go, Ruby, C/C++, PHP, .NET - we got 'em all  
 📊 **Multiple Outputs** - Pretty tables, JSON, CSV, SARIF, whatever floats your boat  
 🎯 **OSV.dev Integration** - Real vulnerability data, not snake oil  
 ⚡ **Zero Config** - Point, shoot, done  
@@ -40,7 +40,7 @@ OPTIONS:
     -p, --path <PATH>              Where to scan [default: current directory]
     -f, --format <FORMAT>          Output format: table, json, csv, summary, sarif
     -o, --output <FILE>            Save to file instead of stdout
-    -e, --ecosystems <LIST>        Only scan specific ecosystems (npm,pypi,cargo,etc)
+    -e, --ecosystems <LIST>        Only scan specific ecosystems (npm,pypi,cargo,maven,go,rubygems,vcpkg,composer,nuget)
     -q, --quiet                    Shut up and scan
     --high-only                    Only show the scary vulnerabilities
     --no-recursive                 Don't dig into subdirectories
@@ -57,6 +57,9 @@ OPTIONS:
 | ☕ **Java** | `pom.xml`, `build.gradle`, `build.gradle.kts`, `ivy.xml` |
 | 🐹 **Go** | `go.mod`, `go.sum`, `go.work`, `go.work.sum`, `vendor/modules.txt` |
 | 💎 **Ruby** | `Gemfile.lock`, `Gemfile`, `gems.rb`, `*.gemspec` |
+| ⚙️ **C/C++** | `vcpkg.json`, `CMakeLists.txt`, `conanfile.txt`, `conanfile.py` |
+| 🐘 **PHP** | `composer.json`, `composer.lock`, `phpunit.xml`, `phpunit.xml.dist` |
+| 🔷 **.NET** | `*.csproj`, `*.vbproj`, `*.fsproj`, `packages.config`, `Directory.Build.props`, `Directory.Packages.props`, `*.nuspec` |
 
 ## Real Talk Examples
 

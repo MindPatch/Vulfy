@@ -54,6 +54,12 @@ pub enum Ecosystem {
     Go,
     #[serde(rename = "rubygems")]
     RubyGems,
+    #[serde(rename = "vcpkg")]
+    Vcpkg,
+    #[serde(rename = "packagist")]
+    Composer,
+    #[serde(rename = "nuget")]
+    NuGet,
 }
 
 impl Ecosystem {
@@ -65,6 +71,9 @@ impl Ecosystem {
             Ecosystem::Maven => "Maven",
             Ecosystem::Go => "Go",
             Ecosystem::RubyGems => "RubyGems",
+            Ecosystem::Vcpkg => "vcpkg",
+            Ecosystem::Composer => "Packagist",
+            Ecosystem::NuGet => "NuGet",
         }
     }
 }
