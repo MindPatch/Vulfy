@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use tracing::{info, warn};
 
 use crate::error::{VulfyError, VulfyResult};
-use crate::types::{Ecosystem, ScanConfig};
+use crate::types::{Ecosystem, ScanConfig, ReportFormat};
 use crate::scanner::Scanner;
 use crate::matcher::VulnerabilityMatcher;
 use crate::reporter::Reporter;
@@ -36,7 +36,11 @@ pub enum ScanType {
         #[arg(short, long, default_value = ".")]
         path: PathBuf,
 
-        /// Output file for the JSON report
+        /// Report format (table is default, shows beautiful CLI output)
+        #[arg(short = 'f', long, default_value = "table")]
+        format: ReportFormat,
+
+        /// Output file (optional - defaults to stdout for table, required for json/csv)
         #[arg(short, long)]
         output: Option<PathBuf>,
 
@@ -52,9 +56,13 @@ pub enum ScanType {
         #[arg(long)]
         no_dev_deps: bool,
 
-        /// Verbose output
+        /// Quiet mode - suppress scan progress info
         #[arg(short, long)]
-        verbose: bool,
+        quiet: bool,
+
+        /// Show only high severity vulnerabilities
+        #[arg(long)]
+        high_only: bool,
     },
 }
 
@@ -69,7 +77,9 @@ impl Cli {
                         no_recursive,
                         ecosystems,
                         no_dev_deps,
-                        verbose,
+                        format,
+                        quiet,
+                        high_only,
                     } => {
                         // Build scan configuration
                         let config = ScanConfigBuilder::new()
@@ -78,9 +88,12 @@ impl Cli {
                             .recursive(!no_recursive)
                             .ecosystems(ecosystems.map(|e| parse_ecosystems(e)).transpose()?)
                             .include_dev_dependencies(!no_dev_deps)
+                            .format(format)
+                            .quiet(quiet)
+                            .high_only(high_only)
                             .build();
 
-                        if verbose {
+                        if !quiet {
                             info!("Starting vulnerability scan with config: {:?}", config);
                         }
 
@@ -130,6 +143,21 @@ impl ScanConfigBuilder {
         self
     }
 
+    pub fn format(mut self, format: ReportFormat) -> Self {
+        self.config.format = format;
+        self
+    }
+
+    pub fn quiet(mut self, quiet: bool) -> Self {
+        self.config.quiet = quiet;
+        self
+    }
+
+    pub fn high_only(mut self, high_only: bool) -> Self {
+        self.config.high_only = high_only;
+        self
+    }
+
     pub fn build(self) -> ScanConfig {
         self.config
     }
@@ -159,7 +187,9 @@ fn parse_ecosystems(ecosystem_strs: Vec<String>) -> VulfyResult<Vec<Ecosystem>> 
 }
 
 async fn execute_scan(config: ScanConfig) -> VulfyResult<()> {
-    info!("Scanning directory: {:?}", config.target_path);
+    if !config.quiet {
+        info!("Scanning directory: {:?}", config.target_path);
+    }
 
     // Initialize scanner
     let scanner = Scanner::new();
@@ -168,11 +198,15 @@ async fn execute_scan(config: ScanConfig) -> VulfyResult<()> {
     let packages = scanner.scan_directory(&config).await?;
     
     if packages.is_empty() {
-        warn!("No packages found in the specified directory");
+        if !config.quiet {
+            warn!("No packages found in the specified directory");
+        }
         return Ok(());
     }
 
-    info!("Found {} packages", packages.len());
+    if !config.quiet {
+        info!("Found {} packages", packages.len());
+    }
 
     // Initialize vulnerability matcher
     let matcher = VulnerabilityMatcher::new();
@@ -180,12 +214,14 @@ async fn execute_scan(config: ScanConfig) -> VulfyResult<()> {
     // Check for vulnerabilities
     let scan_result = matcher.check_vulnerabilities(packages).await?;
 
-    info!(
-        "Scan complete: {} total packages, {} vulnerable packages, {} total vulnerabilities",
-        scan_result.total_packages,
-        scan_result.vulnerable_packages,
-        scan_result.total_vulnerabilities
-    );
+    if !config.quiet {
+        info!(
+            "Scan complete: {} total packages, {} vulnerable packages, {} total vulnerabilities",
+            scan_result.total_packages,
+            scan_result.vulnerable_packages,
+            scan_result.total_vulnerabilities
+        );
+    }
 
     // Generate report
     let reporter = Reporter::new();

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use clap::ValueEnum;
 
 /// Represents a software package dependency
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -9,6 +10,29 @@ pub struct Package {
     pub version: String,
     pub ecosystem: Ecosystem,
     pub source_file: PathBuf,
+}
+
+/// Report output formats
+#[derive(Debug, Clone, ValueEnum)]
+pub enum ReportFormat {
+    /// Beautiful ASCII table with emojis (default)
+    #[value(name = "table")]
+    Table,
+    /// JSON format for programmatic use
+    #[value(name = "json")]
+    Json,
+    /// CSV format for spreadsheet analysis
+    #[value(name = "csv")]
+    Csv,
+    /// Summary only - just statistics
+    #[value(name = "summary")]
+    Summary,
+}
+
+impl Default for ReportFormat {
+    fn default() -> Self {
+        ReportFormat::Table
+    }
 }
 
 /// Supported package ecosystems
@@ -87,6 +111,9 @@ pub struct ScanConfig {
     pub recursive: bool,
     pub ecosystems: Option<Vec<Ecosystem>>,
     pub include_dev_dependencies: bool,
+    pub format: ReportFormat,
+    pub quiet: bool,
+    pub high_only: bool,
 }
 
 impl Default for ScanConfig {
@@ -97,6 +124,9 @@ impl Default for ScanConfig {
             recursive: true,
             ecosystems: None,
             include_dev_dependencies: true,
+            format: ReportFormat::default(),
+            quiet: false,
+            high_only: false,
         }
     }
 }
@@ -115,6 +145,7 @@ pub struct OsvPackage {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OsvResponse {
+    #[serde(default)]
     pub vulns: Vec<OsvVulnerability>,
 }
 

@@ -1,0 +1,13 @@
+# Python dependencies with known vulnerabilities
+django==1.11.0
+flask==0.12.2
+requests==2.18.4
+urllib3==1.24.0
+pyyaml==3.12
+jinja2==2.9.6
+werkzeug==0.14.0
+sqlalchemy==1.2.0
+pillow==5.2.0
+cryptography==2.3.0
+paramiko==2.4.0
+twisted==17.5.0 
