@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="logo.png" alt="Vulfy Logo" width="200"/>
+</div>
+
 # 🐺 Vulfy
 
 **Fast, cross-language vulnerability scanner that doesn't mess around.**
