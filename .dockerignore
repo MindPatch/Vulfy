@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+
+# Target directory
+target/
+**/*.rs.bk
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+docs/
+
+# Test files
+test_*
+**/test_*
+
+# Automation workspace
+vulfy-workspace/
+vulfy-exports/
+
+# Results and logs
+*.json
+*.log
+
+# Docker files (except Dockerfile)
+.dockerignore
+docker-compose.yml
+
+# CI/CD
+.github/
+
+# Other
+assets/
+automation-results.json
+vulfy-scan-result.json 
