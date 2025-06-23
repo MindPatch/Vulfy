@@ -55,7 +55,8 @@ pub enum ScanType {
         #[arg(long)]
         no_recursive: bool,
 
-        /// Only scan specific ecosystems (comma-separated: npm,pypi,cargo,maven,go,rubygems,vcpkg,composer,nuget)
+        /// Only scan specific ecosystems (comma-separated: npm,pypi,crates.io,maven,go,rubygems,vcpkg,packagist,nuget)
+        /// Aliases supported: cargo→crates.io, composer→packagist
         #[arg(short, long, value_delimiter = ',')]
         ecosystems: Option<Vec<String>>,
 
