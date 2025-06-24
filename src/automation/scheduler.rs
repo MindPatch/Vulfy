@@ -180,7 +180,23 @@ async fn run_scheduled_scan(
             Ok(results) => {
                 for (result, packages) in results {
                     // Apply policies to filter results
-                    let filtered_result = policy_engine.apply_policies(&result, &packages);
+                    let mut filtered_result = policy_engine.apply_policies(&result, &packages);
+                    
+                    // CRITICAL FIX: Filter vulnerabilities by minimum severity BEFORE creating notification
+                    if let Some(min_severity) = &config.notifications.filters.min_severity {
+                        let min_level = severity_level(min_severity);
+                        filtered_result.scan_result.vulnerabilities.retain(|v| {
+                            if let Some(severity) = &v.severity {
+                                let level = severity_level(severity);
+                                level >= min_level
+                            } else {
+                                false // Exclude vulnerabilities with no severity info
+                            }
+                        });
+                        
+                        info!("Filtered vulnerabilities: {} remaining after applying minimum severity '{}'", 
+                              filtered_result.scan_result.vulnerabilities.len(), min_severity);
+                    }
                     
                     // Send notifications if enabled and conditions are met
                     if config.notifications.enabled && should_notify(&filtered_result, &config.notifications.filters) {
@@ -227,23 +243,27 @@ fn should_notify(
         return false;
     }
 
-    // Check minimum severity
+    // Check minimum severity - FIXED: Better CVSS and severity parsing
     if let Some(min_severity) = &filters.min_severity {
-        let has_qualifying_severity = result.vulnerabilities.iter().any(|v| {
-            if let Some(severity) = &v.severity {
-                let level = severity_level(severity);
-                let min_level = severity_level(min_severity);
-                info!("Checking severity: '{}' (level {}) >= '{}' (level {})", 
-                     severity, level, min_severity, min_level);
-                level >= min_level
-            } else {
-                false
-            }
-        });
+        let qualifying_vulnerabilities: Vec<_> = result.vulnerabilities.iter()
+            .filter(|v| {
+                if let Some(severity) = &v.severity {
+                    let level = severity_level(severity);
+                    let min_level = severity_level(min_severity);
+                    level >= min_level
+                } else {
+                    false
+                }
+            })
+            .collect();
         
-        if !has_qualifying_severity {
-            info!("No vulnerabilities meet minimum severity requirement of '{}'", min_severity);
+        if qualifying_vulnerabilities.is_empty() {
+            info!("No vulnerabilities meet minimum severity requirement of '{}'. Found {} total vulnerabilities but none qualify.", 
+                  min_severity, result.vulnerabilities.len());
             return false;
+        } else {
+            info!("Found {} vulnerabilities meeting minimum severity '{}' out of {} total", 
+                  qualifying_vulnerabilities.len(), min_severity, result.vulnerabilities.len());
         }
     }
 
@@ -269,30 +289,52 @@ fn should_notify(
     true
 }
 
-/// Convert severity string to numeric level for comparison
+/// Convert severity string to numeric level for comparison - IMPROVED CVSS parsing
 fn severity_level(severity: &str) -> u8 {
     let severity_lower = severity.to_lowercase();
     
     // Handle CVSS format (e.g., "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
     if severity_lower.starts_with("cvss:") {
-        // For CVSS format, determine severity based on the score components
-        // C:H/I:H/A:H indicates High impact across all three categories
-        if severity.contains("C:H") && severity.contains("I:H") && severity.contains("A:H") {
-            return 4; // Critical - High impact on all three (Confidentiality, Integrity, Availability)
-        } else if severity.contains("C:H") || severity.contains("I:H") || severity.contains("A:H") {
-            return 3; // High - High impact on at least one category
-        } else if severity.contains("C:M") || severity.contains("I:M") || severity.contains("A:M") {
-            return 2; // Medium - Medium impact
-        } else {
-            return 1; // Low - Low or no significant impact
+        // Extract base score if present (e.g., "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:P/RL:O/RC:C/CR:X/IR:X/AR:X/MAV:X/MAC:X/MPR:X/MUI:X/MS:X/MC:L/MI:L/MA:L")
+        if let Some(score_start) = severity.find("/AV:") {
+            let score_part = &severity[..score_start];
+            if let Some(version_end) = score_part.rfind('/') {
+                if let Ok(base_score) = score_part[version_end + 1..].parse::<f32>() {
+                    return match base_score {
+                        s if s >= 9.0 => 4, // Critical (9.0-10.0)
+                        s if s >= 7.0 => 3, // High (7.0-8.9)
+                        s if s >= 4.0 => 2, // Medium (4.0-6.9)
+                        s if s >= 0.1 => 1, // Low (0.1-3.9)
+                        _ => 0,
+                    };
+                }
+            }
         }
+        
+        // Fallback: analyze impact scores for CVSS without base score
+        let high_impact_count = ["C:H", "I:H", "A:H"].iter()
+            .filter(|&impact| severity.contains(impact))
+            .count();
+        
+        let medium_impact_count = ["C:M", "I:M", "A:M"].iter()
+            .filter(|&impact| severity.contains(impact))
+            .count();
+            
+        return match high_impact_count {
+            3 => 4, // Critical - High impact on all three (Confidentiality, Integrity, Availability)
+            2 => 3, // High - High impact on two categories
+            1 => 3, // High - High impact on at least one category
+            0 if medium_impact_count >= 2 => 2, // Medium - Medium impact on multiple categories
+            0 if medium_impact_count >= 1 => 2, // Medium - Medium impact on at least one category
+            _ => 1, // Low - Low or no significant impact
+        };
     }
     
     // Handle simple severity strings
     match severity_lower.as_str() {
         s if s.contains("critical") => 4,
         s if s.contains("high") => 3,
-        s if s.contains("medium") => 2,
+        s if s.contains("medium") || s.contains("moderate") => 2,
         s if s.contains("low") => 1,
         _ => 0,
     }
