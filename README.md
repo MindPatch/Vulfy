@@ -341,9 +341,7 @@ retry_attempts = 3
 
 ### Future Plans
 - 🐳 **Container Scanning** - Docker image vulnerability detection
-- 🌐 **Web Dashboard** - Beautiful web interface for monitoring multiple projects
-- 🔍 **AI-Powered Analysis** - Smart vulnerability prioritization with machine learning
-- 📱 **Mobile Alerts** - Push notifications for critical security issues
+
 
 Have feature requests? [Open an issue](https://github.com/mindPatch/vulfy/issues/new) and let's discuss!
 
