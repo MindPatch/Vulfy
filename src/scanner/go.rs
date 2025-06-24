@@ -157,7 +157,7 @@ impl GoParser {
             let line = line.trim();
             
             if line.starts_with("use ") {
-                let module_path = line[4..].trim();
+                let _module_path = line[4..].trim();
                 // This would typically point to a local module
                 // We could recursively scan those go.mod files, but for now just skip
                 continue;

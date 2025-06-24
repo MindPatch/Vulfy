@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::str::FromStr;
 use cron::Schedule;
 use anyhow::Result;
+use chrono::Timelike;
 use crate::automation::{
     AutomationConfig, ScheduleFrequency, ScanResult,
     git_monitor::GitMonitor, webhooks::WebhookNotifier, policy::PolicyEngine,
