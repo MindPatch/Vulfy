@@ -123,8 +123,8 @@ impl WebhookNotifier {
                     }
                 ],
                 "footer": {
-                    "text": "Vulfy Security Scanner • Click for detailed vulnerability info",
-                    "icon_url": "https://github.com/mindPatch/vulfy/raw/main/assets/main_logo.png"
+                    "text": "Vulfy Security Scanner",
+                    "icon_url": "https://raw.githubusercontent.com/MindPatch/Vulfy/refs/heads/master/assets/main_logo.png"
                 },
                 "timestamp": message.timestamp.to_rfc3339()
             }]
