@@ -15,144 +15,61 @@
 
 ## 🚀 What is Vulfy?
 
-Vulfy is a lightning-fast vulnerability scanner that checks your project dependencies for known security issues across multiple programming languages. Built with Rust for maximum performance, it integrates with the OSV.dev database to provide accurate, up-to-date vulnerability information.
+Vulfy is a lightning-fast vulnerability scanner that checks your project dependencies for known security issues across **9 programming languages**. Built with Rust for maximum performance, it integrates with the OSV.dev database to provide accurate, up-to-date vulnerability information.
 
+### ✨ Key Features
 
-## ✨ Features
-
-- 🔥 **Lightning Fast** - Async Rust goes brrrr  
-- 🌍 **Multi-Ecosystem** - **9 languages covered**: npm, Python, Rust, Java, Go, Ruby, C/C++, PHP, .NET
-- 📊 **Multiple Outputs** - Pretty tables, JSON, CSV, SARIF, whatever floats your boat  
-- 🎯 **OSV.dev Integration** - Real vulnerability data, not snake oil  
-- ⚡ **Zero Config** - Point, shoot, done  
-- 🔄 **CI/CD Ready** - Perfect for automated security pipelines
-- 🎨 **Beautiful Reports** - Color-coded severity levels and clean formatting
+- 🔥 **Lightning Fast** - Async Rust performance with concurrent scanning
+- 🌍 **Multi-Ecosystem Support** - npm, Python, Rust, Java, Go, Ruby, C/C++, PHP, .NET
+- 📊 **Multiple Output Formats** - Table, JSON, CSV, SARIF for different use cases
+- 🎯 **OSV.dev Integration** - Real vulnerability data from Google's Open Source Vulnerabilities database
+- ⚡ **Zero Configuration** - Works out of the box, configure only what you need
+- 🔄 **CI/CD Ready** - Perfect exit codes and formats for automated pipelines
 - 🤖 **Automation & Monitoring** - Continuous Git repository monitoring with smart notifications
-- 📋 **Policy Engine** - Advanced vulnerability filtering with custom security policies
+- 📋 **Advanced Policy Engine** - Custom vulnerability filtering and security policies
 - 🔔 **Multi-Platform Notifications** - Discord, Slack, and webhook integrations
 
-## 🤖 Automation & Monitoring (NEW!)
+---
 
-Vulfy now includes a powerful automation system for continuous security monitoring of your Git repositories.
+## 📚 Documentation
 
-### Key Automation Features
+**[📖 Complete Documentation](docs/README.md)** - Comprehensive guides, tutorials, and API reference
 
-- 📂 **Multi-Repository Monitoring** - Track multiple Git repos with branch-specific scanning
-- ⏰ **Flexible Scheduling** - Hourly, daily, weekly, or custom cron expressions
-- 🔔 **Smart Notifications** - Rich Discord/Slack alerts with severity-based filtering
-- 📋 **Policy Engine** - Advanced vulnerability filtering with keyword matching and severity rules
-- 🔐 **Authentication Support** - GitHub tokens, SSH keys, and private repository access
-- 🏗️ **Ecosystem Filtering** - Per-repository ecosystem targeting for focused scans
+### Quick Navigation
+- **[🚀 5-Minute Quick Start](docs/tutorials/quick-start.md)** - Get scanning immediately
+- **[⚙️ Installation Guide](docs/user-guide/getting-started.md)** - All installation methods
+- **[📋 CLI Reference](docs/user-guide/cli-reference.md)** - Complete command documentation
+- **[🤖 Automation Setup](docs/user-guide/automation-overview.md)** - Continuous monitoring
+- **[🔧 Configuration Schema](docs/api-reference/configuration-schema.md)** - Full configuration reference
 
-### Quick Start with Automation
-
-```bash
-# Initialize automation configuration with examples
-vulfy automation init --with-examples
-
-# Validate your configuration
-vulfy automation validate
-
-# Run a manual scan
-vulfy automation run
-
-# Start the scheduler (foreground mode)
-vulfy automation start --foreground
-
-# Check status and configuration
-vulfy automation status
-```
-
-### Example Automation Configuration
-
-```toml
-# Monitor multiple repositories
-[[repositories]]
-name = "my-web-app"
-url = "https://github.com/user/my-web-app.git"
-branches = ["main", "develop", "staging"]
-ecosystems = ["npm", "pypi"]
-
-[repositories.credentials]
-username = "git"
-token = "your_github_token_here"
-
-# Schedule daily scans at 2:00 AM UTC
-[schedule]
-frequency = "daily"
-time = "02:00"
-timezone = "UTC"
-
-# Discord webhook notifications
-[[notifications.webhooks]]
-name = "Security Alerts"
-url = "https://discord.com/api/webhooks/..."
-webhook_type = "discord"
-enabled = true
-
-# Security policies for smart filtering
-[[policies]]
-name = "Critical Authentication Issues"
-enabled = true
-
-[policies.conditions]
-title_contains = ["unauth", "authentication", "bypass"]
-severity = ["high", "critical"]
-
-[policies.actions]
-notify = true
-priority = "critical"
-custom_message = "🚨 Critical auth vulnerability!"
-```
-
-### Automation CLI Commands
-
-```bash
-vulfy automation [COMMAND]
-
-COMMANDS:
-    init        Initialize automation configuration
-    start       Start the automation scheduler  
-    stop        Stop the automation scheduler
-    run         Run a manual scan using automation config
-    status      Show automation status and next scheduled run
-    validate    Validate automation configuration
-
-OPTIONS:
-    -c, --config <PATH>     Configuration file [default: vulfy-automation.toml]
-    -w, --workspace <PATH>  Workspace for cloning repos [default: vulfy-workspace]
-    --with-examples         Create config with example policies
-    --foreground            Run scheduler in foreground mode
-```
-
-### Security Policies
-
-The policy engine supports advanced vulnerability filtering:
-
-- **Keyword Matching** - Filter by title keywords (e.g., "xss", "sql injection")
-- **Severity Levels** - Set minimum severity thresholds
-- **Package Filtering** - Target specific packages with wildcard support
-- **CVE Patterns** - Regex matching for specific CVE patterns
-- **Ecosystem Targeting** - Per-ecosystem policy rules
-
-Example policies included:
-- 🚨 Critical authentication issues
-- ⚠️ XSS vulnerabilities  
-- 💉 SQL injection detection
-- 🔍 Development dependency filtering
-- 📦 NPM-specific high severity issues
+---
 
 ## 📦 Installation
 
-### Pre-built Binaries
+### Option 1: Pre-built Binaries (Recommended)
 ```bash
-# Download the latest release for your platform
+# Linux/WSL
 curl -LO https://github.com/mindPatch/vulfy/releases/latest/download/vulfy-linux-x86_64.tar.gz
 tar -xzf vulfy-linux-x86_64.tar.gz
 sudo mv vulfy /usr/local/bin/
+
+# macOS (Intel)
+curl -LO https://github.com/mindPatch/vulfy/releases/latest/download/vulfy-macos-x86_64.tar.gz
+tar -xzf vulfy-macos-x86_64.tar.gz
+sudo mv vulfy /usr/local/bin/
+
+# macOS (Apple Silicon)
+curl -LO https://github.com/mindPatch/vulfy/releases/latest/download/vulfy-macos-aarch64.tar.gz
+tar -xzf vulfy-macos-aarch64.tar.gz
+sudo mv vulfy /usr/local/bin/
 ```
 
-### From Source
+### Option 2: Using Cargo
+```bash
+cargo install vulfy
+```
+
+### Option 3: From Source
 ```bash
 git clone https://github.com/mindPatch/vulfy.git
 cd vulfy
@@ -160,71 +77,70 @@ cargo build --release
 sudo cp target/release/vulfy /usr/local/bin/
 ```
 
-### Using Cargo
+**Verify Installation:**
 ```bash
-cargo install vulfy
+vulfy --version
+# Should output: vulfy 0.1.0
 ```
+
+---
 
 ## 🏃‍♂️ Quick Start
 
-### Basic Scan
+### Basic Vulnerability Scan
 ```bash
-# Scan current directory with beautiful table output
+# Scan current directory
 vulfy scan packages
 
 # Scan specific directory
 vulfy scan packages --path /path/to/project
+
+# Only show high-severity vulnerabilities
+vulfy scan packages --high-only
+```
+
+### Generate Reports
+```bash
+# JSON for automation/CI
+vulfy scan packages --format json --output security-report.json
+
+# CSV for spreadsheet analysis
+vulfy scan packages --format csv --output vulnerabilities.csv
+
+# SARIF for GitHub Security tab
+vulfy scan packages --format sarif --output vulfy.sarif
 ```
 
 ### CI/CD Integration
 ```bash
-# JSON output for programmatic use
-vulfy scan packages --format json --output security-report.json
+# Fail build if high-severity vulnerabilities found
+vulfy scan packages --high-only --quiet || exit 1
 
-# SARIF format for GitHub Security tab
-vulfy scan packages --format sarif --output vulfy.sarif
-
-# Exit with error code if high-severity vulnerabilities found
-vulfy scan packages --high-only --quiet
-
-# Scan only the new ecosystems we just added!
-vulfy scan packages --ecosystems vcpkg,packagist,nuget
+# Scan specific ecosystems only
+vulfy scan packages --ecosystems npm,pypi --no-dev-deps
 ```
 
-## 🛠️ Usage
-
-```bash
-vulfy scan packages [OPTIONS]
-
-OPTIONS:
-    -p, --path <PATH>              Where to scan [default: current directory]
-    -f, --format <FORMAT>          Output format: table, json, csv, summary, sarif
-    -o, --output <FILE>            Save to file instead of stdout
-    -e, --ecosystems <LIST>        Only scan specific ecosystems (npm,pypi,crates.io,maven,go,rubygems,vcpkg,packagist,nuget)
-    -q, --quiet                    Shut up and scan
-    --high-only                    Only show the scary vulnerabilities
-    --no-recursive                 Don't dig into subdirectories
-    --no-dev-deps                  Skip development dependencies
-```
+---
 
 ## 🎯 Supported Ecosystems
 
-| Ecosystem | Files We Hunt | Status |
+| Ecosystem | Package Files | Status |
 |-----------|---------------|--------|
-| 📦 **npm** | `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `package.json`, `pnpm-lock.yaml` | ✅ |
-| 🐍 **Python** | `requirements.txt`, `Pipfile`, `Pipfile.lock`, `poetry.lock`, `pyproject.toml`, `setup.py`, `setup.cfg`, `environment.yml` (conda) | ✅ |
+| 📦 **npm** | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `package.json` | ✅ |
+| 🐍 **Python** | `requirements.txt`, `Pipfile.lock`, `poetry.lock`, `pyproject.toml` | ✅ |
 | 🦀 **Rust** | `Cargo.lock`, `Cargo.toml` | ✅ |
-| ☕ **Java** | `pom.xml`, `build.gradle`, `build.gradle.kts`, `ivy.xml` | ✅ |
-| 🐹 **Go** | `go.mod`, `go.sum`, `go.work`, `go.work.sum`, `vendor/modules.txt` | ✅ |
-| 💎 **Ruby** | `Gemfile.lock`, `Gemfile`, `gems.rb`, `*.gemspec` | ✅ |
-| ⚙️ **C/C++** | `vcpkg.json`, `CMakeLists.txt`, `conanfile.txt`, `conanfile.py` | 🆕 **NEW!** |
-| 🐘 **PHP** | `composer.json`, `composer.lock`, `phpunit.xml`, `phpunit.xml.dist` | 🆕 **NEW!** |
-| 🔷 **.NET** | `*.csproj`, `*.vbproj`, `*.fsproj`, `packages.config`, `Directory.Build.props`, `Directory.Packages.props`, `*.nuspec` | 🆕 **NEW!** |
+| ☕ **Java** | `pom.xml`, `build.gradle`, `build.gradle.kts` | ✅ |
+| 🐹 **Go** | `go.mod`, `go.sum`, `go.work` | ✅ |
+| 💎 **Ruby** | `Gemfile.lock`, `Gemfile`, `*.gemspec` | ✅ |
+| ⚙️ **C/C++** | `vcpkg.json`, `CMakeLists.txt`, `conanfile.txt` | 🆕 **NEW!** |
+| 🐘 **PHP** | `composer.json`, `composer.lock` | 🆕 **NEW!** |
+| 🔷 **.NET** | `*.csproj`, `packages.config`, `*.nuspec` | 🆕 **NEW!** |
 
+---
 
 ## 📋 Example Output
 
-### Table Format (Default)
+### Beautiful Table Format (Default)
 ```
 🔍 Scanning for package files...
 📦 Found 6 package files across 4 ecosystems
@@ -247,144 +163,202 @@ OPTIONS:
 • 🟢 Low severity: 2
 ```
 
-### JSON Format
-```json
-{
-  "scan_id": "abc123",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "scanned_path": "/path/to/project",
-  "summary": {
-    "total_packages": 42,
-    "vulnerable_packages": 8,
-    "total_vulnerabilities": 12,
-    "severity_counts": {
-      "critical": 0,
-      "high": 4,
-      "medium": 6,
-      "low": 2
-    }
-  },
-  "vulnerabilities": [
-    {
-      "id": "CVE-2021-123",
-      "title": "Remote Code Execution in lodash",
-      "severity": "HIGH",
-      "package": "lodash",
-      "version": "4.17.0",
-      "ecosystem": "npm",
-      "published": "2021-05-15T00:00:00Z",
-      "modified": "2021-05-20T00:00:00Z",
-      "aliases": ["GHSA-abc-123"],
-      "summary": "A vulnerability in lodash allows remote code execution...",
-      "details": "...",
-      "affected_versions": ["<4.17.21"],
-      "references": [
-        {
-          "type": "ADVISORY",
-          "url": "https://github.com/advisories/GHSA-abc-123"
-        }
-      ]
-    }
-  ]
-}
+**[📖 See All Output Formats](docs/user-guide/output-formats.md)** - JSON, CSV, SARIF examples
+
+---
+
+## 🤖 Automation & Monitoring
+
+Vulfy includes a powerful automation system for continuous security monitoring of Git repositories.
+
+### Key Automation Features
+
+- 📂 **Multi-Repository Monitoring** - Track multiple Git repos with branch-specific scanning
+- ⏰ **Flexible Scheduling** - Hourly, daily, weekly, or custom cron expressions
+- 🔔 **Smart Notifications** - Rich Discord/Slack alerts with severity-based filtering
+- 📋 **Advanced Policy Engine** - Custom vulnerability filtering with keyword matching
+- 🔐 **Authentication Support** - GitHub tokens, SSH keys, private repository access
+- 🏗️ **Ecosystem Filtering** - Per-repository ecosystem targeting for focused scans
+
+### Quick Automation Setup
+
+```bash
+# Initialize automation with example configuration
+vulfy automation init --with-examples
+
+# Validate configuration
+vulfy automation validate
+
+# Run manual scan using automation config
+vulfy automation run
+
+# Start continuous monitoring
+vulfy automation start --foreground
 ```
 
-## 🔧 Configuration
+### Example Configuration
 
-Create a `.vulfy.toml` file in your project root for custom settings:
+```toml
+# Monitor multiple repositories
+[[repositories]]
+name = "my-web-app"
+url = "https://github.com/user/my-web-app.git"
+branches = ["main", "develop"]
+ecosystems = ["npm", "pypi"]
+
+[repositories.credentials]
+username = "git"
+token = "your_github_token_here"
+
+# Schedule daily scans at 2:00 AM UTC
+[schedule]
+frequency = "daily"
+time = "02:00"
+timezone = "UTC"
+
+# Discord webhook notifications
+[[notifications.webhooks]]
+name = "Security Alerts"
+url = "https://discord.com/api/webhooks/..."
+webhook_type = "discord"
+enabled = true
+
+# Advanced security policies
+[[policies]]
+name = "Critical Authentication Issues"
+enabled = true
+
+[policies.conditions]
+title_contains = ["authentication", "auth", "bypass"]
+severity = ["high", "critical"]
+
+[policies.actions]
+notify = true
+priority = "critical"
+custom_message = "🚨 Critical auth vulnerability detected!"
+```
+
+**[📖 Complete Automation Guide](docs/user-guide/automation-overview.md)** - Detailed setup and configuration
+
+---
+
+## 🛠️ Usage & Configuration
+
+### Command Line Options
+
+```bash
+vulfy scan packages [OPTIONS]
+
+OPTIONS:
+    -p, --path <PATH>              Directory to scan [default: current directory]
+    -f, --format <FORMAT>          Output format: table, json, csv, summary, sarif
+    -o, --output <FILE>            Save results to file
+    -e, --ecosystems <LIST>        Only scan specific ecosystems (comma-separated)
+    -q, --quiet                    Suppress progress output
+    --high-only                    Show only high/critical severity vulnerabilities
+    --no-recursive                 Don't scan subdirectories
+    --no-dev-deps                  Skip development dependencies
+```
+
+### Project Configuration
+
+Create `.vulfy.toml` in your project root:
 
 ```toml
 [scan]
-# Default ecosystems to scan
 ecosystems = ["npm", "pypi", "crates.io"]
-
-# Severity threshold (vulnerabilities below this level are ignored)
 min_severity = "medium"
-
-# Skip development dependencies
 skip_dev_deps = true
-
-# Custom ignore patterns
-ignore_paths = [
-    "node_modules",
-    "vendor",
-    ".git"
-]
+ignore_paths = ["node_modules", "vendor", ".git"]
 
 [output]
-# Default output format
 format = "table"
-
-# Color output (auto, always, never)
 color = "auto"
 
 [api]
-# OSV.dev API settings
 timeout = 30
 max_concurrent = 10
 retry_attempts = 3
 ```
 
+**[📖 Full Configuration Reference](docs/api-reference/configuration-schema.md)** - Complete schema documentation
+
+---
+
 ## 🚀 Roadmap
 
 ### ✅ Recently Added
-- 🤖 **Automation System** - Complete Git repository monitoring with scheduling
-- 🔔 **Multi-Platform Notifications** - Discord, Slack, and webhook integrations ✅
-- 📋 **Policy Engine** - Advanced vulnerability filtering and security policies ✅
-- 📡 **Git Integration** - Continuous repository monitoring ✅
+- 🤖 **Complete Automation System** - Git repository monitoring with scheduling
+- 🔔 **Multi-Platform Notifications** - Discord, Slack, and webhook integrations
+- 📋 **Advanced Policy Engine** - Custom vulnerability filtering and security policies
+- 🆕 **3 New Ecosystems** - C/C++, PHP, and .NET support
 
-### Coming Soon
+### 🔄 Coming Soon
 - 🔧 **Fix Mode** - Automatically update vulnerable packages to safe versions
 - 📈 **Trend Analysis** - Track vulnerability trends over time
 - ⚡ **Watch Mode** - Real-time monitoring for new vulnerabilities
-- 💾 **Database Storage** - Historical scan data and trend analysis
+- 💾 **Database Storage** - Historical scan data and analytics
 
-### Future Plans
+### 🔮 Future Plans
 - 🐳 **Container Scanning** - Docker image vulnerability detection
+- 🌐 **Web Dashboard** - Centralized security monitoring interface
+- 🔌 **Plugin System** - Extensible architecture for custom integrations
 
+**Have feature requests?** [Open an issue](https://github.com/mindPatch/vulfy/issues/new) and let's discuss!
 
-Have feature requests? [Open an issue](https://github.com/mindPatch/vulfy/issues/new) and let's discuss!
+---
 
-## 🏗️ Architecture
+## 🏗️ Architecture & Performance
 
-Vulfy is built with performance and reliability in mind:
+Vulfy is built with performance and reliability as core principles:
 
-- **Async-First Design** - Built on Tokio for maximum concurrency
-- **Strategy Pattern** - Pluggable parsers for different package managers
-- **Rate Limiting** - Respectful API usage with configurable limits
-- **Memory Efficient** - Streaming parsers for large projects
-- **Error Resilient** - Graceful handling of network and parsing errors
+- **⚡ Async-First Design** - Built on Tokio for maximum concurrency
+- **🔧 Strategy Pattern** - Pluggable parsers for different package managers  
+- **🚦 Rate Limiting** - Respectful API usage with configurable limits
+- **💾 Memory Efficient** - Streaming parsers for large projects
+- **🛡️ Error Resilient** - Graceful handling of network and parsing errors
+- **🔍 Semantic Versioning** - Proper version comparison using semver crate
+
+**[📖 Architecture Deep Dive](docs/developer-guide/architecture.md)** - Technical implementation details
+
+---
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how to get started:
+We welcome contributions! Whether it's bug fixes, new features, or ecosystem support.
 
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development Setup
+### Quick Start
 ```bash
-git clone https://github.com/your-username/vulfy.git
+git clone https://github.com/mindPatch/vulfy.git
 cd vulfy
 cargo build
 cargo test
 ```
 
-### Guidelines
+### Contribution Guidelines
 - Follow Rust best practices and run `cargo clippy`
 - Add tests for new features
 - Update documentation for user-facing changes
 - Keep commit messages clear and descriptive
 
-## 🐛 Bug Reports & Feature Requests
+**[📖 Contributing Guide](docs/developer-guide/contributing.md)** - Detailed contribution instructions
 
-Found a bug or have a feature idea? We'd love to hear from you!
+---
 
-- **Bug Reports**: [Create an issue](https://github.com/mindPatch/vulfy/issues/new?template=bug_report.md)
-- **Feature Requests**: [Start a discussion](https://github.com/mindPatch/vulfy/discussions/new?category=ideas)
+## 🆘 Support & Community
+
+### Getting Help
+- **🐛 Bug Reports**: [Create an issue](https://github.com/mindPatch/vulfy/issues/new?template=bug_report.md)
+- **💡 Feature Requests**: [Start a discussion](https://github.com/mindPatch/vulfy/discussions/new?category=ideas)
+- **❓ Questions**: [GitHub Discussions](https://github.com/mindPatch/vulfy/discussions)
+- **📖 Documentation**: [Complete docs](docs/README.md)
+
+### Quick Troubleshooting
+- **"No package files found"** - Ensure you're in a project directory with supported package files
+- **"Network connection failed"** - Check internet connectivity; Vulfy needs access to OSV.dev API
+- **"Permission denied"** - Make sure `vulfy` binary is executable: `chmod +x vulfy`
+
+---
 
 ## 📄 License
 
@@ -392,15 +366,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- [OSV.dev](https://osv.dev/) for providing comprehensive vulnerability data
-- The Rust community for amazing crates and tooling
-- All our contributors who make Vulfy better
+- **[OSV.dev](https://osv.dev/)** - Comprehensive vulnerability database
+- **Rust Community** - Amazing crates and tooling ecosystem
+- **Contributors** - Everyone who makes Vulfy better
 
 ---
 
 <div align="center">
   <strong>Made with ❤️ and ☕ by mindpatch</strong>
-  <br>
+  <br><br>
   <a href="https://github.com/mindPatch/vulfy">⭐ Star us on GitHub</a> |
   <a href="https://github.com/mindPatch/vulfy/issues">🐛 Report Issues</a> |
   <a href="https://github.com/mindPatch/vulfy/discussions">💬 Discussions</a>
