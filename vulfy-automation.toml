@@ -13,7 +13,7 @@ timezone = "UTC"
 enabled = true
 
 [notifications.filters]
-min_severity = "medium"
+min_severity = "high"
 # Temporarily set to false until persistent storage is implemented
 only_new_vulnerabilities = false
 
@@ -25,8 +25,7 @@ name = "Discord Security Channel"
 # Get these from Discord: Server Settings -> Integrations -> Webhooks -> Create Webhook
 url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
 webhook_type = "discord"
-# Set to false until webhook URL is updated
-enabled = false
+enabled = true
 
 [storage]
 database_path = "vulfy_automation.db"
