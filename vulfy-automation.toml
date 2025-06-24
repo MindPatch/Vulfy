@@ -1,8 +1,8 @@
 policies = []
 
 [[repositories]]
-name = "my-project"
-url = "https://github.com/mindpatch/hacks"
+name = "juice-shop"
+url = "https://github.com/juice-shop/juice-shop"
 
 [schedule]
 frequency = "daily"
@@ -10,12 +10,23 @@ time = "02:00"
 timezone = "UTC"
 
 [notifications]
-enabled = false
-webhooks = []
+enabled = true
 
 [notifications.filters]
 min_severity = "medium"
-only_new_vulnerabilities = true
+# Temporarily set to false until persistent storage is implemented
+only_new_vulnerabilities = false
+
+# Discord webhook for security alerts
+# IMPORTANT: Replace with your actual Discord webhook URL
+[[notifications.webhooks]]
+name = "Discord Security Channel"
+# TODO: Replace YOUR_WEBHOOK_ID and YOUR_WEBHOOK_TOKEN with actual values
+# Get these from Discord: Server Settings -> Integrations -> Webhooks -> Create Webhook
+url = "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+webhook_type = "discord"
+# Set to false until webhook URL is updated
+enabled = false
 
 [storage]
 database_path = "vulfy_automation.db"

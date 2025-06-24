@@ -113,7 +113,7 @@ impl JavaParser {
                     }
                 }
                 Ok(Event::Eof) => break,
-                Err(e) => return Err(VulfyError::Xml(e.into())),
+                Err(e) => return Err(VulfyError::Xml(e)),
                 _ => {}
             }
             buf.clear();

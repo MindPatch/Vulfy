@@ -104,20 +104,18 @@ impl GoParser {
                 continue;
             }
             
-            // go.sum format: module version hash
+            // Parse version, handle indirect dependencies
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 2 {
-                let module = parts[0];
+                let name = parts[0];
                 let version = parts[1];
                 
-                // Skip /go.mod entries
-                if version.ends_with("/go.mod") {
-                    continue;
-                }
-                
+                // Remove 'v' prefix if present
+                let clean_version = version.trim_start_matches('v');
+
                 packages.push(Package {
-                    name: module.to_string(),
-                    version: version.to_string(),
+                    name: name.to_string(),
+                    version: clean_version.to_string(),
                     ecosystem: Ecosystem::Go,
                     source_file: file_path.to_path_buf(),
                 });
@@ -156,16 +154,14 @@ impl GoParser {
         for line in content.lines() {
             let line = line.trim();
             
-            if line.starts_with("use ") {
-                let _module_path = line[4..].trim();
-                // This would typically point to a local module
-                // We could recursively scan those go.mod files, but for now just skip
-                continue;
+            if let Some(stripped) = line.strip_prefix("use ") {
+                let _module_path = stripped.trim();
+                // Handle 'use' directive if needed
             }
-            
-            // go.work files can also have require directives similar to go.mod
-            if line.starts_with("require ") {
-                if let Some((name, version)) = self.parse_require_line(&line[8..]) {
+
+            // Parse require statement
+            if let Some(stripped) = line.strip_prefix("require ") {
+                if let Some((name, version)) = self.parse_require_line(stripped) {
                     packages.push(Package {
                         name,
                         version,
@@ -212,7 +208,7 @@ impl GoParser {
     }
 
     fn parse_require_line(&self, line: &str) -> Option<(String, String)> {
-        let parts: Vec<&str> = line.trim().split_whitespace().collect();
+        let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() >= 2 {
             let name = parts[0].to_string();
             let version = parts[1].to_string();

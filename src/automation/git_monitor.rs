@@ -193,7 +193,7 @@ impl GitMonitor {
         
         // Create scan configuration
         let scan_config = ScanConfig {
-            target_path: repo_dir.clone(),
+            target_path: repo_dir.to_path_buf(),
             output_file: None,
             recursive: true,
             ecosystems: repo_config.ecosystems.clone(),

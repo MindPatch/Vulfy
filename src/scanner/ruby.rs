@@ -172,7 +172,7 @@ impl RubyParser {
                 let quote_char = c;
                 let mut content = String::new();
                 
-                while let Some(inner_c) = chars.next() {
+                for inner_c in chars.by_ref() {
                     if inner_c == quote_char {
                         break;
                     }

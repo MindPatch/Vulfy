@@ -1,13 +1,11 @@
+use std::collections::HashMap;
 use std::io::Write;
+use crate::error::{VulfyError, VulfyResult};
+use crate::types::{ScanResult, ReportFormat, SarifReport, SarifRun, SarifTool, SarifDriver, SarifRule, SarifResult, SarifMessage, SarifLocation, SarifPhysicalLocation, SarifArtifactLocation, SarifRegion, SarifArtifact, SarifRuleProperties, SarifResultProperties};
 use tracing::info;
 use serde_json;
-use std::collections::HashMap;
 
-use crate::error::{VulfyError, VulfyResult};
-use crate::types::{ScanConfig, ScanResult, ReportFormat, Ecosystem, 
-                  SarifReport, SarifRun, SarifTool, SarifDriver, SarifRule, SarifResult,
-                  SarifMessage, SarifLocation, SarifPhysicalLocation, SarifArtifactLocation,
-                  SarifRuleProperties, SarifResultProperties, SarifRegion, SarifArtifact};
+use crate::types::{ScanConfig, Ecosystem};
 
 pub struct Reporter;
 
@@ -37,14 +35,15 @@ impl Reporter {
         } else {
             // Output directly to stdout
             print!("{}", table_output);
-            std::io::stdout().flush().map_err(|e| VulfyError::Io(e))?;
+            std::io::stdout().flush().map_err(VulfyError::Io)?;
         }
         
         Ok(())
     }
 
     async fn generate_json_report(&self, scan_result: &ScanResult, config: &ScanConfig) -> VulfyResult<()> {
-        let json_report = self.format_json_report(scan_result).await?;
+        let json_report = serde_json::to_string_pretty(scan_result)
+            .map_err(VulfyError::Json)?;
 
         if let Some(ref output_file) = config.output_file {
             self.write_to_file(&json_report, output_file).await?;
@@ -53,7 +52,7 @@ impl Reporter {
             }
         } else {
             print!("{}", json_report);
-            std::io::stdout().flush().map_err(|e| VulfyError::Io(e))?;
+            std::io::stdout().flush().map_err(VulfyError::Io)?;
         }
 
         Ok(())
@@ -69,7 +68,7 @@ impl Reporter {
             }
         } else {
             print!("{}", csv_report);
-            std::io::stdout().flush().map_err(|e| VulfyError::Io(e))?;
+            std::io::stdout().flush().map_err(VulfyError::Io)?;
         }
 
         Ok(())
@@ -85,7 +84,7 @@ impl Reporter {
             }
         } else {
             print!("{}", summary_output);
-            std::io::stdout().flush().map_err(|e| VulfyError::Io(e))?;
+            std::io::stdout().flush().map_err(VulfyError::Io)?;
         }
         
         Ok(())
@@ -101,7 +100,7 @@ impl Reporter {
             }
         } else {
             print!("{}", sarif_report);
-            std::io::stdout().flush().map_err(|e| VulfyError::Io(e))?;
+            std::io::stdout().flush().map_err(VulfyError::Io)?;
         }
 
         Ok(())
@@ -175,15 +174,18 @@ impl Reporter {
         });
         
         // Header
-        output.push_str(&format!("\n🛡️  SECURITY VULNERABILITY REPORT\n"));
-        output.push_str(&format!("{}\n", "=".repeat(80)));
+        output.push_str("\n🛡️  SECURITY VULNERABILITY REPORT\n");
+        output.push_str("=".repeat(60).as_str());
+        output.push('\n');
+
+        if config.high_only {
+            output.push_str("🔥 Showing: High severity only\n");
+        }
+        
         output.push_str(&format!("📅 Scan Date: {}\n", scan_result.scan_timestamp));
         output.push_str(&format!("📦 Total Packages: {}\n", scan_result.total_packages));
         output.push_str(&format!("⚠️  Vulnerable Packages: {}\n", scan_result.vulnerable_packages));
         output.push_str(&format!("🚨 Total Vulnerabilities: {}\n", scan_result.total_vulnerabilities));
-        if config.high_only {
-            output.push_str(&format!("🔥 Showing: High severity only\n"));
-        }
         output.push_str(&format!("{}\n", "=".repeat(80)));
         
         // Table headers
@@ -278,9 +280,9 @@ impl Reporter {
                         package_vuln.package.ecosystem.as_str(),
                         self.escape_csv_field(&vuln.id),
                         self.escape_csv_field(&cve_id),
-                        self.escape_csv_field(&vuln.severity.as_deref().unwrap_or("Unknown")),
+                        self.escape_csv_field(vuln.severity.as_deref().unwrap_or("Unknown")),
                         self.escape_csv_field(&vuln.summary),
-                        self.escape_csv_field(&vuln.fixed_version.as_deref().unwrap_or("")),
+                        self.escape_csv_field(vuln.fixed_version.as_deref().unwrap_or("")),
                         package_vuln.package.source_file.display()
                     ));
                 }
@@ -293,7 +295,7 @@ impl Reporter {
     async fn format_summary_report(&self, scan_result: &ScanResult) -> VulfyResult<String> {
         let mut output = String::new();
         
-        output.push_str(&format!("🛡️  SECURITY SCAN SUMMARY\n"));
+        output.push_str("🛡️  SECURITY SCAN SUMMARY\n");
         output.push_str(&format!("{}\n", "=".repeat(40)));
         output.push_str(&format!("📅 Scan Date: {}\n", scan_result.scan_timestamp));
         output.push_str(&format!("📦 Total Packages: {}\n", scan_result.total_packages));
@@ -428,7 +430,7 @@ impl Reporter {
                     driver: SarifDriver {
                         name: "Vulfy".to_string(),
                         version: env!("CARGO_PKG_VERSION").to_string(),
-                        information_uri: Some("https://github.com/vulfy/vulfy".to_string()),
+                        information_uri: Some("https://github.com/mindpatch/vulfy".to_string()),
                         rules: rules.into_values().collect(),
                     },
                 },
@@ -437,8 +439,9 @@ impl Reporter {
             }],
         };
 
-        serde_json::to_string_pretty(&sarif_report)
-            .map_err(|e| VulfyError::Json(e))
+        let sarif_report = serde_json::to_string_pretty(&sarif_report)
+            .map_err(VulfyError::Json)?;
+        Ok(sarif_report)
     }
 
     async fn write_to_file(&self, content: &str, file_path: &std::path::Path) -> VulfyResult<()> {
@@ -516,7 +519,7 @@ impl Reporter {
             if part.len() == 4 && part.chars().all(|c| c.is_ascii_digit()) {
                 let year: i32 = part.parse().unwrap_or(0);
                 // Validate it's a reasonable year (between 1990 and current year + 5)
-                if year >= 1990 && year <= 2030 {
+                if (1990..=2030).contains(&year) {
                     return part.to_string();
                 }
             }
@@ -529,7 +532,7 @@ impl Reporter {
             for part in ref_parts {
                 if part.len() == 4 && part.chars().all(|c| c.is_ascii_digit()) {
                     let year: i32 = part.parse().unwrap_or(0);
-                    if year >= 1990 && year <= 2030 {
+                    if (1990..=2030).contains(&year) {
                         return part.to_string();
                     }
                 }

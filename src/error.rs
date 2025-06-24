@@ -28,6 +28,9 @@ pub enum VulfyError {
     #[error("Package parsing error: {message}")]
     PackageParsing { message: String },
 
+    #[error("Version parsing error: {message}")]
+    VersionParsing { message: String },
+
     #[error("OSV API error: {message}")]
     OsvApi { message: String },
 

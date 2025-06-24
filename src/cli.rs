@@ -172,7 +172,7 @@ impl Cli {
                             .target_path(path)
                             .output_file(output)
                             .recursive(!no_recursive)
-                            .ecosystems(ecosystems.map(|e| parse_ecosystems(e)).transpose()?)
+                            .ecosystems(ecosystems.map(parse_ecosystems).transpose()?)
                             .include_dev_dependencies(!no_dev_deps)
                             .format(format)
                             .quiet(quiet)
@@ -579,7 +579,7 @@ async fn execute_automation_run(config_path: PathBuf, workspace: PathBuf, reposi
         
         for scan_result in &results {
             // Group vulnerabilities by package name
-            let mut package_vulns: std::collections::HashMap<String, Vec<crate::types::Vulnerability>> = std::collections::HashMap::new();
+            let mut vulnerabilities_by_package: std::collections::HashMap<String, Vec<crate::types::Vulnerability>> = std::collections::HashMap::new();
             
             for vulnerability in &scan_result.vulnerabilities {
                 // Extract package name from vulnerability ID (often in format "package-name@version")
@@ -593,11 +593,11 @@ async fn execute_automation_run(config_path: PathBuf, workspace: PathBuf, reposi
                     references: vulnerability.references.clone(),
                 };
                 
-                package_vulns.entry(package_name).or_insert_with(Vec::new).push(vuln);
+                vulnerabilities_by_package.entry(package_name).or_default().push(vuln);
             }
             
             // Create PackageVulnerability entries
-            for (package_name, vulns) in package_vulns {
+            for (package_name, vulns) in vulnerabilities_by_package {
                 let package_vuln = crate::types::PackageVulnerability {
                     package: crate::types::Package {
                         name: package_name,

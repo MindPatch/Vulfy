@@ -39,12 +39,22 @@ impl WebhookNotifier {
 
     /// Send notification to a specific webhook
     async fn send_webhook_notification(&self, webhook: &Webhook, message: &NotificationMessage) -> Result<()> {
+        // Validate webhook URL before attempting to send
+        if webhook.url.contains("YOUR_WEBHOOK_ID") || webhook.url.contains("YOUR_WEBHOOK_TOKEN") {
+            return Err(anyhow::anyhow!(
+                "Webhook '{}' has placeholder URL. Please update with actual webhook URL from Discord/Slack.", 
+                webhook.name
+            ));
+        }
+
         let payload = match webhook.webhook_type {
             WebhookType::Discord => self.create_discord_payload(message),
             WebhookType::Slack => self.create_slack_payload(message),
             WebhookType::Generic => self.create_generic_payload(message),
         };
 
+        info!("Sending notification to {}: {}", webhook.name, message.title);
+        
         let response = self.client
             .post(&webhook.url)
             .json(&payload)
@@ -53,10 +63,12 @@ impl WebhookNotifier {
             .await?;
 
         if response.status().is_success() {
+            info!("Successfully sent notification to {}", webhook.name);
             Ok(())
         } else {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
+            error!("Webhook request failed for {}: status {}, body: {}", webhook.name, status, body);
             Err(anyhow::anyhow!("Webhook request failed with status {}: {}", status, body))
         }
     }
@@ -224,15 +236,15 @@ impl WebhookNotifier {
 
         // Determine overall severity - use severity field directly
         let severity = if current_scan.vulnerabilities.iter().any(|v| 
-            v.severity.as_ref().map_or(false, |s| s.to_lowercase().contains("critical"))
+            v.severity.as_ref().is_some_and(|s| s.to_lowercase().contains("critical"))
         ) {
             "critical"
         } else if current_scan.vulnerabilities.iter().any(|v| 
-            v.severity.as_ref().map_or(false, |s| s.to_lowercase().contains("high"))
+            v.severity.as_ref().is_some_and(|s| s.to_lowercase().contains("high"))
         ) {
             "high"
         } else if current_scan.vulnerabilities.iter().any(|v| 
-            v.severity.as_ref().map_or(false, |s| s.to_lowercase().contains("medium"))
+            v.severity.as_ref().is_some_and(|s| s.to_lowercase().contains("medium"))
         ) {
             "medium"
         } else {
