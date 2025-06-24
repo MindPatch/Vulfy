@@ -13,10 +13,11 @@ pub struct Package {
 }
 
 /// Report output formats
-#[derive(Debug, Clone, ValueEnum, PartialEq)]
+#[derive(Debug, Clone, ValueEnum, PartialEq, Default)]
 pub enum ReportFormat {
     /// Beautiful ASCII table with emojis (default)
     #[value(name = "table")]
+    #[default]
     Table,
     /// JSON format for programmatic use
     #[value(name = "json")]
@@ -30,12 +31,6 @@ pub enum ReportFormat {
     /// SARIF format for static analysis tools
     #[value(name = "sarif")]
     Sarif,
-}
-
-impl Default for ReportFormat {
-    fn default() -> Self {
-        ReportFormat::Table
-    }
 }
 
 /// Supported package ecosystems

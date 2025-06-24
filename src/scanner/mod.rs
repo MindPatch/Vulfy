@@ -180,10 +180,10 @@ impl Scanner {
         let mut files = Vec::new();
 
         let entries = std::fs::read_dir(dir_path)
-            .map_err(|e| VulfyError::Io(e))?;
+            .map_err(VulfyError::Io)?;
 
         for entry in entries {
-            let entry = entry.map_err(|e| VulfyError::Io(e))?;
+            let entry = entry.map_err(VulfyError::Io)?;
             let path = entry.path();
             
             if path.is_file() && self.find_parser(&path).is_some() {
@@ -317,10 +317,10 @@ impl Scanner {
         let mut all_packages = Vec::new();
 
         let entries = std::fs::read_dir(dir_path)
-            .map_err(|e| VulfyError::Io(e))?;
+            .map_err(VulfyError::Io)?;
 
         for entry in entries {
-            let entry = entry.map_err(|e| VulfyError::Io(e))?;
+            let entry = entry.map_err(VulfyError::Io)?;
             let path = entry.path();
             
             if path.is_file() {

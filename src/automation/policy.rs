@@ -182,7 +182,7 @@ impl PolicyEngine {
         // This is a best-effort approach since vulnerability doesn't directly reference packages
         // We'll try to match based on package names mentioned in the vulnerability
         
-        for (_package_key, package) in package_map {
+        for package in package_map.values() {
             // Check if package name is mentioned in vulnerability summary
             let package_name = &package.name;
             

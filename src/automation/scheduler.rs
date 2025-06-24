@@ -221,17 +221,28 @@ fn should_notify(
 ) -> bool {
     let result = &filtered_result.scan_result;
     
+    // Check if there are any vulnerabilities first
+    if result.vulnerabilities.is_empty() {
+        info!("No vulnerabilities found, skipping notification");
+        return false;
+    }
+
     // Check minimum severity
     if let Some(min_severity) = &filters.min_severity {
         let has_qualifying_severity = result.vulnerabilities.iter().any(|v| {
             if let Some(severity) = &v.severity {
-                severity_level(severity) >= severity_level(min_severity)
+                let level = severity_level(severity);
+                let min_level = severity_level(min_severity);
+                info!("Checking severity: '{}' (level {}) >= '{}' (level {})", 
+                     severity, level, min_severity, min_level);
+                level >= min_level
             } else {
                 false
             }
         });
         
         if !has_qualifying_severity {
+            info!("No vulnerabilities meet minimum severity requirement of '{}'", min_severity);
             return false;
         }
     }
@@ -239,31 +250,46 @@ fn should_notify(
     // Check repository filter
     if let Some(repos) = &filters.repositories {
         if !repos.contains(&result.repository) {
+            info!("Repository '{}' not in notification filter list", result.repository);
             return false;
         }
     }
 
-    // Check if there are any vulnerabilities
-    if result.vulnerabilities.is_empty() {
-        return false;
-    }
-
-    // If only_new_vulnerabilities is true, we'd need to compare with previous scan
-    // For now, we'll treat all vulnerabilities as "new" since we don't have persistent storage yet
+    // For only_new_vulnerabilities filter:
+    // If we don't have persistent storage to compare against previous scans,
+    // we'll be more lenient and allow notifications for significant findings
     if filters.only_new_vulnerabilities {
         // Note: In a full implementation, this would compare against stored previous scan results
-        // from a database. For now, we consider all vulnerabilities as potentially new.
-        if result.vulnerabilities.is_empty() {
-            return false;
-        }
+        // For now, we'll allow notifications if there are any vulnerabilities, since we can't
+        // reliably determine what's "new" without persistent storage
+        info!("only_new_vulnerabilities=true, but no previous scan data available. Allowing notification for {} vulnerabilities.", result.vulnerabilities.len());
     }
 
+    info!("Notification criteria met: {} vulnerabilities found", result.vulnerabilities.len());
     true
 }
 
 /// Convert severity string to numeric level for comparison
 fn severity_level(severity: &str) -> u8 {
-    match severity.to_lowercase().as_str() {
+    let severity_lower = severity.to_lowercase();
+    
+    // Handle CVSS format (e.g., "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
+    if severity_lower.starts_with("cvss:") {
+        // For CVSS format, determine severity based on the score components
+        // C:H/I:H/A:H indicates High impact across all three categories
+        if severity.contains("C:H") && severity.contains("I:H") && severity.contains("A:H") {
+            return 4; // Critical - High impact on all three (Confidentiality, Integrity, Availability)
+        } else if severity.contains("C:H") || severity.contains("I:H") || severity.contains("A:H") {
+            return 3; // High - High impact on at least one category
+        } else if severity.contains("C:M") || severity.contains("I:M") || severity.contains("A:M") {
+            return 2; // Medium - Medium impact
+        } else {
+            return 1; // Low - Low or no significant impact
+        }
+    }
+    
+    // Handle simple severity strings
+    match severity_lower.as_str() {
         s if s.contains("critical") => 4,
         s if s.contains("high") => 3,
         s if s.contains("medium") => 2,

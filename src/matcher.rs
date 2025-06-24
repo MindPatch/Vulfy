@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
 use reqwest::Client;
+use semver::Version;
 
 use crate::error::{VulfyError, VulfyResult};
 use crate::types::{
@@ -169,27 +170,23 @@ impl VulnerabilityMatcher {
     }
 
     fn is_version_affected(&self, osv_vuln: &OsvVulnerability, version: &str) -> bool {
-        // Simplified version checking - in a real implementation, this would need
-        // to handle complex version range semantics for different ecosystems
+        // Parse the package version - if it's not a valid semver, try to normalize it
+        let package_version = match self.normalize_and_parse_version(version) {
+            Some(v) => v,
+            None => {
+                warn!("Could not parse package version '{}', assuming not affected", version);
+                return false; // Changed from true to false for safety
+            }
+        };
+
         if let Some(affected) = &osv_vuln.affected {
             for affected_entry in affected {
                 if let Some(ranges) = &affected_entry.ranges {
                     for range in ranges {
-                        // Simple check - assume version is affected if it's mentioned
-                        // A proper implementation would use semver parsing and range checking
                         if range.range_type == "ECOSYSTEM" || range.range_type == "SEMVER" {
-                            for event in &range.events {
-                                if let Some(introduced) = &event.introduced {
-                                    if introduced == "0" || version >= introduced.as_str() {
-                                        if let Some(fixed) = &event.fixed {
-                                            if version < fixed.as_str() {
-                                                return true;
-                                            }
-                                        } else {
-                                            return true; // No fixed version yet
-                                        }
-                                    }
-                                }
+                            // Check if version falls within vulnerable range
+                            if self.is_version_in_vulnerable_range(&package_version, &range.events) {
+                                return true;
                             }
                         }
                     }
@@ -197,8 +194,85 @@ impl VulnerabilityMatcher {
             }
         }
 
-        // If we can't determine from ranges, assume it might be affected
-        true
+        // If we can't determine from ranges, assume NOT affected (safer default)
+        false
+    }
+
+    /// Normalize version strings and parse them as semantic versions
+    fn normalize_and_parse_version(&self, version: &str) -> Option<Version> {
+        // Remove common prefixes and suffixes
+        let cleaned = version
+            .trim()
+            .trim_start_matches('v')
+            .trim_start_matches('=')
+            .trim_start_matches('^')
+            .trim_start_matches('~')
+            .trim_start_matches(">=")
+            .trim_start_matches("<=")
+            .trim_start_matches('>')
+            .trim_start_matches('<')
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .split(',')
+            .next()
+            .unwrap_or("")
+            .split(';')
+            .next()
+            .unwrap_or("");
+
+        // Try to parse as-is first
+        if let Ok(version) = Version::parse(cleaned) {
+            return Some(version);
+        }
+
+        // Try to normalize common non-semver formats
+        let normalized = self.normalize_version_format(cleaned);
+        Version::parse(&normalized).ok()
+    }
+
+    /// Normalize various version formats to semver
+    fn normalize_version_format(&self, version: &str) -> String {
+        // Handle common cases like "1.0" -> "1.0.0"
+        let parts: Vec<&str> = version.split('.').collect();
+        match parts.len() {
+            1 => format!("{}.0.0", parts[0]),
+            2 => format!("{}.{}.0", parts[0], parts[1]),
+            _ => version.to_string(),
+        }
+    }
+
+    /// Check if a version falls within a vulnerable range based on OSV events
+    fn is_version_in_vulnerable_range(&self, version: &Version, events: &[crate::types::OsvEvent]) -> bool {
+        let mut introduced_version: Option<Version> = None;
+        let mut fixed_version: Option<Version> = None;
+
+        for event in events {
+            if let Some(introduced) = &event.introduced {
+                if introduced == "0" {
+                    introduced_version = Some(Version::new(0, 0, 0));
+                } else if let Some(v) = self.normalize_and_parse_version(introduced) {
+                    introduced_version = Some(v);
+                }
+            }
+            
+            if let Some(fixed) = &event.fixed {
+                if let Some(v) = self.normalize_and_parse_version(fixed) {
+                    fixed_version = Some(v);
+                }
+            }
+        }
+
+        // Check if version is in vulnerable range
+        let after_introduced = introduced_version
+            .map(|intro| version >= &intro)
+            .unwrap_or(true);
+
+        let before_fixed = fixed_version
+            .map(|fixed| version < &fixed)
+            .unwrap_or(true); // If no fix version, assume still vulnerable
+
+        after_introduced && before_fixed
     }
 
     fn find_fixed_version(&self, osv_vuln: &OsvVulnerability) -> Option<String> {
@@ -262,5 +336,51 @@ impl VulnerabilityMatcher {
 impl Default for VulnerabilityMatcher {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version_normalization() {
+        let matcher = VulnerabilityMatcher::new();
+        
+        // Test basic semver parsing
+        assert!(matcher.normalize_and_parse_version("1.0.0").is_some());
+        assert!(matcher.normalize_and_parse_version("2.1.3").is_some());
+        
+        // Test version prefixes
+        assert!(matcher.normalize_and_parse_version("v1.0.0").is_some());
+        assert!(matcher.normalize_and_parse_version("^1.0.0").is_some());
+        assert!(matcher.normalize_and_parse_version("~1.0.0").is_some());
+        
+        // Test normalization of incomplete versions
+        assert!(matcher.normalize_and_parse_version("1.0").is_some());
+        assert!(matcher.normalize_and_parse_version("1").is_some());
+    }
+
+    #[test]
+    fn test_vulnerable_range_checking() {
+        let matcher = VulnerabilityMatcher::new();
+        let version_1_5_0 = Version::parse("1.5.0").unwrap();
+        
+        // Test version in vulnerable range
+        let events = vec![
+            crate::types::OsvEvent {
+                introduced: Some("1.0.0".to_string()),
+                fixed: Some("2.0.0".to_string()),
+            }
+        ];
+        assert!(matcher.is_version_in_vulnerable_range(&version_1_5_0, &events));
+        
+        // Test version before vulnerable range
+        let version_0_9_0 = Version::parse("0.9.0").unwrap();
+        assert!(!matcher.is_version_in_vulnerable_range(&version_0_9_0, &events));
+        
+        // Test version after fix
+        let version_2_1_0 = Version::parse("2.1.0").unwrap();
+        assert!(!matcher.is_version_in_vulnerable_range(&version_2_1_0, &events));
     }
 } 
