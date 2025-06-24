@@ -112,10 +112,14 @@ pub struct ScanPolicy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PolicyConditions {
     pub title_contains: Option<Vec<String>>, // Keywords like "unauth", "xss"
+    pub title_regex: Option<Vec<String>>, // Regex patterns for title matching
+    pub description_contains: Option<Vec<String>>, // Keywords in vulnerability description
+    pub description_regex: Option<Vec<String>>, // Regex patterns for description matching
     pub severity: Option<Vec<String>>, // "critical", "high", "medium", "low"
     pub ecosystems: Option<Vec<Ecosystem>>,
     pub cve_pattern: Option<String>, // Regex pattern for CVE IDs
     pub packages: Option<Vec<String>>, // Specific package names
+    pub package_regex: Option<Vec<String>>, // Regex patterns for package names
 }
 
 /// Policy actions when conditions are met
@@ -125,6 +129,7 @@ pub struct PolicyActions {
     pub priority: PolicyPriority,
     pub custom_message: Option<String>,
     pub ignore: bool, // Ignore vulnerabilities matching this policy
+    pub filter_only: bool, // If true, ONLY show vulnerabilities that match this policy (whitelist mode)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -236,6 +241,50 @@ impl ScanPolicy {
             }
         }
 
+        // Check title regex patterns
+        if let Some(patterns) = &conditions.title_regex {
+            let title = &vulnerability.summary;
+            let matches_pattern = patterns.iter().any(|pattern| {
+                match Regex::new(pattern) {
+                    Ok(regex) => regex.is_match(title),
+                    Err(_) => {
+                        // Log warning but don't fail the match
+                        false
+                    }
+                }
+            });
+            if !matches_pattern {
+                return false;
+            }
+        }
+
+        // Check description contains keywords (if vulnerability has description field)
+        if let Some(keywords) = &conditions.description_contains {
+            // Note: Vulnerability struct might not have a separate description field
+            // For now, we'll check against the summary field as well
+            let text_to_search = vulnerability.summary.to_lowercase();
+            let has_keyword = keywords.iter().any(|keyword| {
+                text_to_search.contains(&keyword.to_lowercase())
+            });
+            if !has_keyword {
+                return false;
+            }
+        }
+
+        // Check description regex patterns
+        if let Some(patterns) = &conditions.description_regex {
+            let text_to_search = &vulnerability.summary;
+            let matches_pattern = patterns.iter().any(|pattern| {
+                match Regex::new(pattern) {
+                    Ok(regex) => regex.is_match(text_to_search),
+                    Err(_) => false,
+                }
+            });
+            if !matches_pattern {
+                return false;
+            }
+        }
+
         // Check severity
         if let Some(severities) = &conditions.severity {
             if let Some(vuln_severity) = &vulnerability.severity {
@@ -257,8 +306,14 @@ impl ScanPolicy {
             }
         }
 
-        // Check packages
+        // Check packages (basic string matching)
         if let Some(_packages) = &conditions.packages {
+            // This would need to be checked against the package name from scan context
+            // For now, we'll skip this check as we don't have package context in Vulnerability
+        }
+
+        // Check package regex patterns
+        if let Some(_patterns) = &conditions.package_regex {
             // This would need to be checked against the package name from scan context
             // For now, we'll skip this check as we don't have package context in Vulnerability
         }

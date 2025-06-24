@@ -41,10 +41,49 @@ impl PolicyEngine {
             .map(|p| (format!("{}@{}", p.name, p.version), p))
             .collect();
 
-        // Apply each policy to each vulnerability
+        // Check if any policies have filter_only=true (whitelist mode)
+        let has_filter_only_policies = self.policies.iter().any(|p| p.enabled && p.actions.filter_only);
+        let mut filter_only_matched_vulns = std::collections::HashSet::new();
+
+        // First pass: collect vulnerabilities that match filter_only policies
+        if has_filter_only_policies {
+            for vulnerability in &scan_result.vulnerabilities {
+                for policy in &self.policies {
+                    if policy.enabled && policy.actions.filter_only {
+                        let package_name = self.find_package_for_vulnerability(vulnerability, &package_map);
+                        
+                        if self.vulnerability_matches_policy(vulnerability, policy, package_name.as_deref()) {
+                            filter_only_matched_vulns.insert(vulnerability.id.clone());
+                            
+                            let policy_match = PolicyMatch {
+                                policy_name: policy.name.clone(),
+                                vulnerability_id: vulnerability.id.clone(),
+                                package_name: package_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                                actions: policy.actions.clone(),
+                            };
+                            policy_matches.push(policy_match);
+                            
+                            if policy.actions.notify {
+                                prioritized_vulnerabilities.push(vulnerability.id.clone());
+                                info!("Filter-only policy '{}' matched and prioritized vulnerability: {} ({})", 
+                                      policy.name, vulnerability.id, policy.actions.priority.as_str());
+                            }
+                            break; // One filter_only match is enough to include the vulnerability
+                        }
+                    }
+                }
+            }
+        }
+
+        // Second pass: apply regular policies to remaining vulnerabilities
         for vulnerability in &scan_result.vulnerabilities {
+            // If we have filter_only policies and this vulnerability didn't match any, skip it
+            if has_filter_only_policies && !filter_only_matched_vulns.contains(&vulnerability.id) {
+                continue;
+            }
+
             for policy in &self.policies {
-                if policy.enabled {
+                if policy.enabled && !policy.actions.filter_only {
                     // Find the package associated with this vulnerability
                     let package_name = self.find_package_for_vulnerability(vulnerability, &package_map);
                     
@@ -74,17 +113,30 @@ impl PolicyEngine {
             }
         }
 
-        // Remove ignored vulnerabilities from the result
+        // Filter vulnerabilities based on policy results
         let filtered_vulnerabilities: Vec<Vulnerability> = scan_result
             .vulnerabilities
             .iter()
-            .filter(|v| !ignored_vulnerabilities.contains(&v.id))
+            .filter(|v| {
+                // If we have filter_only policies, only include vulnerabilities that matched them
+                if has_filter_only_policies {
+                    filter_only_matched_vulns.contains(&v.id) && !ignored_vulnerabilities.contains(&v.id)
+                } else {
+                    // Normal mode: exclude only ignored vulnerabilities
+                    !ignored_vulnerabilities.contains(&v.id)
+                }
+            })
             .cloned()
             .collect();
 
         let mut filtered_scan_result = scan_result.clone();
         filtered_scan_result.vulnerabilities = filtered_vulnerabilities;
         filtered_scan_result.policies_applied = self.policies.iter().map(|p| p.name.clone()).collect();
+
+        info!("Policy filtering results: {} vulnerabilities -> {} vulnerabilities (filter_only_mode: {})", 
+              scan_result.vulnerabilities.len(), 
+              filtered_scan_result.vulnerabilities.len(),
+              has_filter_only_policies);
 
         FilteredScanResult {
             scan_result: filtered_scan_result,
@@ -108,6 +160,57 @@ impl PolicyEngine {
             });
             
             if !has_keyword {
+                return false;
+            }
+        }
+
+        // Check title regex patterns
+        if let Some(patterns) = &conditions.title_regex {
+            let title = &vulnerability.summary;
+            let matches_pattern = patterns.iter().any(|pattern| {
+                match Regex::new(pattern) {
+                    Ok(regex) => regex.is_match(title),
+                    Err(e) => {
+                        warn!("Invalid regex pattern in policy '{}': {} - Error: {}", policy.name, pattern, e);
+                        false
+                    }
+                }
+            });
+            
+            if !matches_pattern {
+                return false;
+            }
+        }
+
+        // Check description contains keywords
+        if let Some(keywords) = &conditions.description_contains {
+            // For now, we'll search in the summary field since Vulnerability might not have separate description
+            let text_to_search = vulnerability.summary.to_lowercase();
+            
+            let has_keyword = keywords.iter().any(|keyword| {
+                let keyword_lower = keyword.to_lowercase();
+                text_to_search.contains(&keyword_lower)
+            });
+            
+            if !has_keyword {
+                return false;
+            }
+        }
+
+        // Check description regex patterns
+        if let Some(patterns) = &conditions.description_regex {
+            let text_to_search = &vulnerability.summary;
+            let matches_pattern = patterns.iter().any(|pattern| {
+                match Regex::new(pattern) {
+                    Ok(regex) => regex.is_match(text_to_search),
+                    Err(e) => {
+                        warn!("Invalid regex pattern in policy '{}': {} - Error: {}", policy.name, pattern, e);
+                        false
+                    }
+                }
+            });
+            
+            if !matches_pattern {
                 return false;
             }
         }
@@ -168,6 +271,28 @@ impl PolicyEngine {
             }
         }
 
+        // Check package regex patterns
+        if let Some(patterns) = &conditions.package_regex {
+            if let Some(pkg_name) = package_name {
+                let matches_pattern = patterns.iter().any(|pattern| {
+                    match Regex::new(pattern) {
+                        Ok(regex) => regex.is_match(pkg_name),
+                        Err(e) => {
+                            warn!("Invalid package regex pattern in policy '{}': {} - Error: {}", policy.name, pattern, e);
+                            false
+                        }
+                    }
+                });
+                
+                if !matches_pattern {
+                    return false;
+                }
+            } else {
+                // No package name available, can't match package regex condition
+                return false;
+            }
+        }
+
         // Check ecosystems
         if let Some(_ecosystems) = &conditions.ecosystems {
             // This would need ecosystem context from the scan
@@ -208,16 +333,21 @@ impl PolicyEngine {
                         "privilege".to_string(),
                         "escalation".to_string(),
                     ]),
+                    title_regex: None,
+                    description_contains: None,
+                    description_regex: None,
                     severity: Some(vec!["high".to_string(), "critical".to_string()]),
                     ecosystems: None,
                     cve_pattern: None,
                     packages: None,
+                    package_regex: None,
                 },
                 actions: PolicyActions {
                     notify: true,
                     priority: crate::automation::PolicyPriority::Critical,
                     custom_message: Some("🚨 Critical authentication vulnerability detected!".to_string()),
                     ignore: false,
+                    filter_only: false,
                 },
             },
             ScanPolicy {
@@ -229,16 +359,21 @@ impl PolicyEngine {
                         "cross-site scripting".to_string(),
                         "script injection".to_string(),
                     ]),
+                    title_regex: None,
+                    description_contains: None,
+                    description_regex: None,
                     severity: Some(vec!["medium".to_string(), "high".to_string(), "critical".to_string()]),
                     ecosystems: None,
                     cve_pattern: None,
                     packages: None,
+                    package_regex: None,
                 },
                 actions: PolicyActions {
                     notify: true,
                     priority: crate::automation::PolicyPriority::High,
                     custom_message: Some("⚠️ XSS vulnerability requires attention".to_string()),
                     ignore: false,
+                    filter_only: false,
                 },
             },
             ScanPolicy {
@@ -250,16 +385,21 @@ impl PolicyEngine {
                         "sqli".to_string(),
                         "sql".to_string(),
                     ]),
+                    title_regex: None,
+                    description_contains: None,
+                    description_regex: None,
                     severity: Some(vec!["medium".to_string(), "high".to_string(), "critical".to_string()]),
                     ecosystems: None,
                     cve_pattern: None,
                     packages: None,
+                    package_regex: None,
                 },
                 actions: PolicyActions {
                     notify: true,
                     priority: crate::automation::PolicyPriority::High,
                     custom_message: Some("💉 SQL injection vulnerability detected".to_string()),
                     ignore: false,
+                    filter_only: false,
                 },
             },
             ScanPolicy {
@@ -267,6 +407,9 @@ impl PolicyEngine {
                 enabled: true,
                 conditions: PolicyConditions {
                     title_contains: None,
+                    title_regex: None,
+                    description_contains: None,
+                    description_regex: None,
                     severity: Some(vec!["low".to_string()]),
                     ecosystems: None,
                     cve_pattern: None,
@@ -276,12 +419,14 @@ impl PolicyEngine {
                         "*dev".to_string(),
                         "*test".to_string(),
                     ]),
+                    package_regex: None,
                 },
                 actions: PolicyActions {
                     notify: false,
                     priority: crate::automation::PolicyPriority::Low,
                     custom_message: None,
                     ignore: true, // Ignore low-severity issues in dev dependencies
+                    filter_only: false,
                 },
             },
         ]

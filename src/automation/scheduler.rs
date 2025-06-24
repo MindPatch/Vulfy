@@ -179,7 +179,10 @@ async fn run_scheduled_scan(
         match git_monitor.scan_repository(repository).await {
             Ok(results) => {
                 for (result, packages) in results {
-                    // Apply policies to filter results
+                    // Store the original scan result BEFORE policy filtering
+                    all_results.push(result.clone());
+                    
+                    // Apply policies to filter results for notifications
                     let mut filtered_result = policy_engine.apply_policies(&result, &packages);
                     
                     // CRITICAL FIX: Filter vulnerabilities by minimum severity BEFORE creating notification
@@ -194,8 +197,10 @@ async fn run_scheduled_scan(
                             }
                         });
                         
-                        info!("Filtered vulnerabilities: {} remaining after applying minimum severity '{}'", 
-                              filtered_result.scan_result.vulnerabilities.len(), min_severity);
+                        info!("Policy filtering: {} original -> {} filtered vulnerabilities (min_severity: '{}')", 
+                              result.vulnerabilities.len(),
+                              filtered_result.scan_result.vulnerabilities.len(), 
+                              min_severity);
                     }
                     
                     // Send notifications if enabled and conditions are met
@@ -206,11 +211,13 @@ async fn run_scheduled_scan(
                             error!("Failed to send notifications for {}/{}: {}", 
                                    result.repository, result.branch, e);
                         } else {
-                            info!("Sent notifications for {}/{}", result.repository, result.branch);
+                            info!("Sent notifications for {}/{} - {} vulnerabilities after policy filtering", 
+                                  result.repository, result.branch, filtered_result.scan_result.vulnerabilities.len());
                         }
+                    } else {
+                        info!("No notifications sent for {}/{} - {} vulnerabilities found but filtered out by policies", 
+                              result.repository, result.branch, result.vulnerabilities.len());
                     }
-                    
-                    all_results.push(filtered_result.scan_result);
                 }
             }
             Err(e) => {
